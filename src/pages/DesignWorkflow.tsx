@@ -2278,7 +2278,8 @@ const DesignWorkflow: React.FC = () => {
               </Box>
             )}
 
-            <Box sx={{ overflowX: 'auto' }}>
+            {/* Keep floating labels inside the scroll container's clipping boundary. */}
+            <Box sx={{ overflowX: 'auto', pt: 1.5, pb: 1 }}>
             <Box sx={{ minWidth: { xs: 0, lg: selectedCustomType?.barcodeCount ? 620 + selectedCustomType.barcodeCount * 240 : 600 } }}>
             {targetList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>

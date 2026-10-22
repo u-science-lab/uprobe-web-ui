@@ -2279,10 +2279,10 @@ const DesignWorkflow: React.FC = () => {
             )}
 
             <Box sx={{ overflowX: 'auto' }}>
-            <Box sx={{ minWidth: selectedCustomType?.barcodeCount ? 620 + selectedCustomType.barcodeCount * 240 : 600 }}>
+            <Box sx={{ minWidth: { xs: 0, lg: selectedCustomType?.barcodeCount ? 620 + selectedCustomType.barcodeCount * 240 : 600 } }}>
             {targetList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>
-                    <Grid item xs sx={{ minWidth: 180 }}>
+                    <Grid item xs={12} sm={6} lg sx={{ minWidth: 0 }}>
                       <TextField
                         fullWidth
                         label={`Target ${index + 1}`}
@@ -2290,7 +2290,7 @@ const DesignWorkflow: React.FC = () => {
                         onChange={(e) => updateTarget(index, 'target', e.target.value)}
                       />
                     </Grid>
-                    <Grid item xs sx={{ minWidth: 180 }}>
+                    <Grid item xs={12} sm={6} lg sx={{ minWidth: 0 }}>
                       <TextField
                         fullWidth
                         label="Sequence (Optional)"
@@ -2312,7 +2312,7 @@ const DesignWorkflow: React.FC = () => {
                         const barcodeLabel = `BC${barcodeIndex + 1}${expectedLength === undefined ? '' : ` · ${expectedLength} bp`}`;
                         const options = barcodeLibrary.filter(entry => expectedLength === undefined || entry.sequence.length === expectedLength);
                         return (
-                          <Grid item key={barcodeIndex} sx={{ width: 240, flexShrink: 0 }}>
+                          <Grid item key={barcodeIndex} xs={12} sm={6} lg="auto" sx={{ width: { lg: 240 }, minWidth: 0, flexShrink: 0 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Autocomplete
                                   freeSolo forcePopupIcon fullWidth size="small" options={options}

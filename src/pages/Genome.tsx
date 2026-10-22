@@ -579,9 +579,9 @@ const Genome: React.FC = () => {
           <Card elevation={2} sx={{ mb: 3 }}>
             <CardContent>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={3}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <FormControl fullWidth size="small">
+                <Grid item xs={12} lg={4}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <FormControl fullWidth size="small" sx={{ flex: '1 1 160px', minWidth: 0 }}>
                       <InputLabel id="genome-select-label">Select Genome</InputLabel>
                       <Select
                         labelId="genome-select-label"
@@ -668,7 +668,7 @@ const Genome: React.FC = () => {
                     </Box>
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={9}>
+                <Grid item xs={12} lg={8}>
                   <FormControl fullWidth size="small">
                     <OutlinedInput
                       placeholder="Search files..."
@@ -696,8 +696,8 @@ const Genome: React.FC = () => {
                   {/* Header with breadcrumbs and actions */}
                   <Box sx={{ mb: 2 }}>
                     {/* Navigation and Path & Actions */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: '1 1 180px', minWidth: 0 }}>
                         {currentPath.length > 0 && (
                           <Tooltip title="Back">
                             <IconButton size="small" onClick={handleNavigateUp}>
@@ -810,7 +810,7 @@ const Genome: React.FC = () => {
                     )}
                     
                     {/* File Stats */}
-                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">
                           {fileItems.filter(f => f.type === 'folder').length} folders, {fileItems.filter(f => f.type === 'file').length} files
@@ -838,6 +838,7 @@ const Genome: React.FC = () => {
                     onContextMenu={(e) => handleContextMenu(e)}
                     sx={{ 
                       minHeight: 300,
+                      overflowX: 'auto',
                       border: '2px dashed transparent',
                       borderRadius: 1,
                       transition: 'border-color 0.2s',
@@ -854,7 +855,7 @@ const Genome: React.FC = () => {
                         </Typography>
                       </Box>
                     ) : (searchQuery ? filteredItems : fileItems).length > 0 ? (
-                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      <Box sx={{ minWidth: 640, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                         {/* Table Header */}
                         <Box 
                           sx={{ 

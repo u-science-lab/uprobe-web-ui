@@ -126,7 +126,9 @@ const Tutorial: React.FC = () => {
           <Box sx={{ 
             borderRight: isMobile ? 0 : `1px solid ${theme.palette.divider}`, 
             borderBottom: isMobile ? `1px solid ${theme.palette.divider}` : 0, 
-            minWidth: 280, 
+            minWidth: 0,
+            width: isMobile ? '100%' : 280,
+            flexShrink: 0,
             bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
             display: 'flex',
             flexDirection: 'column',
@@ -239,7 +241,7 @@ const Tutorial: React.FC = () => {
           </Box>
 
           {/* Content Area */}
-          <Box sx={{ flexGrow: 1, overflow: 'hidden', bgcolor: 'background.paper' }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0, overflow: 'hidden', bgcolor: 'background.paper' }}>
             {/* 1. Quick Start */}
             <TabPanel value={activeTab} index={0}>
               <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 3 }}>

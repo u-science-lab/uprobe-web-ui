@@ -50,7 +50,19 @@ const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   },
   '& .MuiTableCell-root': {
     borderBottom: `1px solid ${theme.palette.divider}`,
-    padding: theme.spacing(1, 2),
+    padding: theme.spacing(1),
+    overflowWrap: 'anywhere',
+  },
+  '& .MuiTableCell-root:last-child': {
+    position: 'sticky',
+    right: 0,
+    zIndex: 1,
+    backgroundColor: theme.palette.background.paper,
+    borderLeft: `1px solid ${theme.palette.divider}`,
+  },
+  '& .MuiTableCell-head:last-child': {
+    zIndex: 3,
+    backgroundColor: theme.palette.background.default,
   },
 }));
 
@@ -94,7 +106,7 @@ const statusIcons = {
   queued: <ScheduleIcon fontSize="small" />,
   running: <AutorenewIcon fontSize="small" />,
   completed: <CheckCircleIcon fontSize="small" />,
-  failed: <DeleteIcon fontSize="small" />,
+  failed: <ErrorOutlineIcon fontSize="small" />,
   paused: <PauseIcon fontSize="small" />,
 };
 
@@ -174,87 +186,58 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onViewRaw,
   onViewError,
 }) => {
+  const safePage = Math.min(page, Math.max(0, Math.ceil(tasks.length / rowsPerPage) - 1));
   return (
-    <StyledTableContainer>
-      <Table sx={{ minWidth: 800 }}>
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ width: '15%' }}>Task</TableCell>
-            <TableCell sx={{ width: '20%' }}>Description</TableCell>
-            <TableCell sx={{ width: '8%' }}>Genome</TableCell>
-            <TableCell sx={{ width: '12%', whiteSpace: 'nowrap' }}>Probe Name</TableCell>
-            <TableCell sx={{ width: '5%' }}>Type</TableCell>
-            <TableCell sx={{ width: '5%' }}>Source</TableCell>
-            <TableCell sx={{ width: '8%' }}>Status</TableCell>
-            <TableCell sx={{ width: '10%' }}>Progress</TableCell>
-            <TableCell sx={{ width: '12%', whiteSpace: 'nowrap' }}>Created</TableCell>
-            <TableCell align="right" sx={{ minWidth: 140 }}>Actions</TableCell>
-          </TableRow>
-        </TableHead>
+    <Box sx={{ minWidth: 0 }}>
+    <StyledTableContainer role="region" aria-label="Task list" sx={{
+      mt: 0, borderRadius: 2, overflow: 'hidden',
+      '& .MuiTableCell-root': { p: 2, verticalAlign: 'top' },
+      '& .MuiTableCell-root:last-child': { position: 'static', borderLeft: 0 },
+      '@media (max-width: 999px)': {
+        border: 0, background: 'transparent',
+        '& table, & tbody': { display: 'block', width: '100%' },
+        '& thead': { display: 'none' },
+        '& tbody tr': { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden' },
+        '& .MuiTableCell-root': { display: 'block', width: 'auto', minWidth: 0, border: 0, px: 2, py: 1 },
+        '& .MuiTableCell-root:first-of-type': { pt: 2 },
+        '& .MuiTableCell-root:last-child': { pb: 2, borderTop: '1px solid', borderColor: 'divider' },
+      },
+    }}>
+      <Table aria-label="Probe design tasks" sx={{ width: '100%', tableLayout: 'fixed' }}>
+        <TableHead><TableRow>
+          <TableCell sx={{ width: '30%' }}>Task</TableCell>
+          <TableCell sx={{ width: '22%' }}>Design</TableCell>
+          <TableCell sx={{ width: '21%' }}>Status / progress</TableCell>
+          <TableCell sx={{ width: '13%' }}>Created</TableCell>
+          <TableCell align="right" sx={{ width: '14%' }}>Actions</TableCell>
+        </TableRow></TableHead>
         <TableBody>
-          {tasks
-            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-            .map((task) => (
-              <TableRow key={task.id} hover>
-                <TableCell>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 0.5 }}>
-                      {task.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                      {task.id}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Tooltip title={task.description}>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {task.description}
-                    </Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{task.genome}</Typography>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  <Typography variant="body2">{getTaskProbeName(task)}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontWeight: 500,
-                      color: getTaskProbeType(task) === 'DNA' ? 'primary.main' : 'secondary.main',
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    {getTaskProbeType(task)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">{getTaskSource(task)}</Typography>
-                </TableCell>
-                <TableCell>
+          {tasks.slice(safePage * rowsPerPage, (safePage + 1) * rowsPerPage).map(task => (
+            <TableRow key={task.id} hover>
+              <TableCell>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, overflowWrap: 'anywhere', mb: 0.5 }}>{task.name}</Typography>
+                <Box component="details" sx={{ color: 'text.secondary', fontSize: 12, '& summary': { cursor: 'pointer', width: 'fit-content' } }}>
+                  <summary>Task details</summary>
+                  <Typography variant="caption" component="p" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere', my: 0.75 }}>{task.id}</Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{task.description || 'No description'}</Typography>
+                </Box>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{task.genome}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{getTaskProbeName(task)}</Typography>
+                <Typography variant="caption" color="text.secondary">{getTaskProbeType(task)} · {getTaskSource(task)}</Typography>
+              </TableCell>
+              <TableCell>
                   <Chip
                     icon={task.no_filtered_probes && task.status === 'completed' ? <ErrorOutlineIcon fontSize="small" /> : statusIcons[task.status as keyof typeof statusIcons]}
                     label={task.no_filtered_probes && task.status === 'completed' ? 'No passing probes' : task.status === "pending" ? "Queued" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                     color={task.no_filtered_probes && task.status === 'completed' ? 'warning' : getStatusColor(task.status)}
                     size="small"
+                    sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
                   />
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
+
+                <Box sx={{ mt: 1, maxWidth: 240 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                     <LinearProgress
                       variant="determinate"
                       value={task.progress}
@@ -265,57 +248,53 @@ const TaskTable: React.FC<TaskTableProps> = ({
                           ? "success"
                           : "primary"
                       }
-                      sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
+                      sx={{ flexGrow: 1, minWidth: 0, height: 6, borderRadius: 3 }}
                     />
                     <Typography variant="caption" color="text.secondary" sx={{ minWidth: 35 }}>
                       {task.progress}%
                     </Typography>
                   </Box>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {new Date(task.created_at).toLocaleString([], {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+
+                </Box>
+              </TableCell>
+              <TableCell>
+                <Typography variant="caption" color="text.secondary">
+                  {new Date(task.created_at).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                  <Stack direction="row" useFlexGap flexWrap="wrap" spacing={0.5} justifyContent="flex-end">
                     {task.status === "pending" && (
                       <Tooltip title="Run Task">
-                        <IconButton size="small" onClick={() => onRunTask(task.id)}>
+                        <IconButton aria-label="Run Task" size="small" onClick={() => onRunTask(task.id)}>
                           <PlayArrowIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "running" && (
                       <Tooltip title="Pause Task">
-                        <IconButton size="small" onClick={() => onPauseTask(task.id)}>
+                        <IconButton aria-label="Pause Task" size="small" onClick={() => onPauseTask(task.id)}>
                           <PauseCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "paused" && (
                       <Tooltip title="Resume Task">
-                        <IconButton size="small" onClick={() => onResumeTask(task.id)}>
+                        <IconButton aria-label="Resume Task" size="small" onClick={() => onResumeTask(task.id)}>
                           <PlayCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {(task.status === 'failed' || task.status === 'completed') && (
                       <Tooltip title="Rerun Task">
-                        <IconButton size="small" onClick={() => onRerunTask(task.id)}>
+                        <IconButton aria-label="Rerun Task" size="small" onClick={() => onRerunTask(task.id)}>
                           <ReplayIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === 'failed' && task.error_message && onViewError && (
                       <Tooltip title="View Error Details">
-                        <IconButton size="small" onClick={() => onViewError(task)} sx={{ color: 'error.main' }}>
+                        <IconButton aria-label="View Error Details" size="small" onClick={() => onViewError(task)} sx={{ color: 'error.main' }}>
                           <ErrorOutlineIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -325,37 +304,44 @@ const TaskTable: React.FC<TaskTableProps> = ({
                         {task.no_filtered_probes ? (
                           <Button size="small" color="warning" onClick={() => onViewRaw(task)} disabled={!task.raw_file}>View raw</Button>
                         ) : <Tooltip title="View Report">
-                          <IconButton size="small" onClick={() => onViewReport(task)}>
+                          <IconButton aria-label="View Report" size="small" onClick={() => onViewReport(task)}>
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>}
                         <Tooltip title="Download Results">
-                          <IconButton size="small" onClick={() => onDownloadResult(task.id)}>
+                          <IconButton aria-label="Download Results" size="small" onClick={() => onDownloadResult(task.id)}>
                             <DownloadIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </>
                     )}
                     <Tooltip title="Delete Task">
-                      <IconButton size="small" onClick={() => onDeleteTask(task.id)} sx={{ color: 'error.main' }}>
+                      <IconButton aria-label="Delete Task" size="small" onClick={() => onDeleteTask(task.id)} sx={{ color: 'error.main' }}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </Stack>
-                </TableCell>
-              </TableRow>
-            ))}
+
+              </TableCell>
+            </TableRow>
+          ))}
+          {tasks.length === 0 && <TableRow><TableCell colSpan={5} sx={{ textAlign: 'center', py: '48px !important' }}>
+            <Typography variant="subtitle2">No tasks found</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Try another search or status, or create a new task.</Typography>
+          </TableCell></TableRow>}
         </TableBody>
       </Table>
+    </StyledTableContainer>
       <TablePagination
         component="div"
+        sx={{ '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', justifyContent: 'flex-end', px: 0, gap: 0.5 }, '& .MuiTablePagination-spacer': { display: 'none' }, '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { my: 1 } }}
         count={tasks.length}
-        page={page}
+        page={safePage}
         onPageChange={onPageChange}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={onRowsPerPageChange}
       />
-    </StyledTableContainer>
+    </Box>
   );
 };
 

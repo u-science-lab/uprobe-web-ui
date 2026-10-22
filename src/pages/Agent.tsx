@@ -3066,7 +3066,7 @@ const Agent: React.FC = () => {
 
   return (
     <Box sx={{
-      height: 'calc(100vh - 64px)',
+      height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 60px)' },
       display: 'flex',
       backgroundColor: 'background.default'
     }}>
@@ -3076,6 +3076,7 @@ const Agent: React.FC = () => {
             <Box
               sx={{
                 width: '280px',
+                flexShrink: 0,
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
@@ -3325,6 +3326,7 @@ const Agent: React.FC = () => {
           <Box
             sx={{
               flex: 1,
+              minWidth: 0,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',

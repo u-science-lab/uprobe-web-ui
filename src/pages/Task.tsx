@@ -381,7 +381,7 @@ const Task: React.FC = () => {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    const matchesTab = activeTab === "all" || task.status === activeTab;
+    const matchesTab = activeTab === "all" || task.status === activeTab || (activeTab === "pending" && task.status === "queued");
     const matchesSearch =
       task.name.toLowerCase().includes(searchText.toLowerCase()) ||
       task.description.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -390,12 +390,12 @@ const Task: React.FC = () => {
   }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
+    <Box sx={{ p: { xs: 0, sm: 1, md: 2 }, minWidth: 0, width: '100%' }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: 'wrap', gap: 2, mb: 3 }}>
         <Stack spacing={0.5}>
           <Stack direction="row" spacing={1} alignItems="center">
             <AssignmentIcon color="primary" sx={{ fontSize: 28 }} />
-            <Typography variant="h4" component="h1">
+            <Typography variant="h4" component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 650 }}>
               Task Management
             </Typography>
           </Stack>
@@ -403,7 +403,7 @@ const Task: React.FC = () => {
             Manage and monitor your probe design tasks
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" useFlexGap flexWrap="wrap" spacing={2}>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -425,12 +425,12 @@ const Task: React.FC = () => {
 
       <TaskStatistics stats={getTasksStatistics()} />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'stretch', mb: 2 }}>
         <TextField
           variant="outlined"
           placeholder="Search tasks..."
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -438,13 +438,17 @@ const Task: React.FC = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ maxWidth: 400 }}
+          sx={{ width: '100%', maxWidth: { sm: 400 } }}
+          inputProps={{ 'aria-label': 'Search tasks' }}
           size="small"
         />
         <Tabs
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          sx={{ borderBottom: 0 }}
+          onChange={(_, newValue) => { setActiveTab(newValue); setPage(0); }}
+          sx={{ minWidth: 0, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minWidth: 'auto', px: { xs: 1.5, sm: 2 }, textTransform: 'none' } }}
         >
           <Tab label="All Tasks" value="all" />
           <Tab label="Running" value="running" />

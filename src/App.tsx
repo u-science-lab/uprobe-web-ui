@@ -70,7 +70,7 @@ function App() {
   const location = useLocation();
   const theme = useTheme();
   const { mode, toggleTheme } = useThemeContext();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   // Navigation items configuration
@@ -181,7 +181,7 @@ function App() {
               edge="start"
               onClick={handleDrawerToggle}
               sx={{ 
-                mr: 2,
+                mr: { xs: 1, sm: 2 },
                 '&:hover': {
                   backgroundColor: alpha(theme.palette.primary.main, 0.12),
                 }
@@ -191,13 +191,13 @@ function App() {
             </IconButton>
           )}
           
-          <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: { xs: 1, sm: 3 }, flexGrow: isMobile ? 1 : 0, flexShrink: 0 }}>
             <Box
               sx={{
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                mr: 1.5,
+                mr: { xs: 0.75, sm: 1.5 },
                 boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
                 overflow: 'hidden',
                 position: 'relative',

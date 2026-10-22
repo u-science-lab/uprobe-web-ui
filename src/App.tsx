@@ -14,6 +14,9 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import ContactMailIcon from '@mui/icons-material/ContactMail';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import LanguageIcon from '@mui/icons-material/Language';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useThemeContext } from './contexts/ThemeContext';
 
 import Home from './pages/Home';
@@ -38,6 +41,11 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 const CONTACT_EMAIL = 'jshn20001017@gmail.com';
 const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('U-Probe inquiry')}`;
+
+const PROJECT_LINKS = [
+  { label: 'Website', href: 'https://www.u-probe.org/', icon: LanguageIcon },
+  { label: 'GitHub', href: 'https://github.com/u-science-lab/U-Probe', icon: GitHubIcon },
+];
 
 // Protected Route component
 const ProtectedRoute = () => {
@@ -143,6 +151,24 @@ function App() {
         );
       })}
       <Divider sx={{ my: 1 }} />
+      <Typography variant="overline" color="text.secondary" sx={{ px: 2, fontSize: 11 }}>Project links</Typography>
+      {PROJECT_LINKS.map(link => {
+        const Icon = link.icon;
+        return <ListItemButton
+          key={link.label}
+          component="a"
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={link.label}
+          onClick={() => setMobileOpen(false)}
+          sx={{ borderRadius: 1.5, py: 1.25 }}
+        >
+          <ListItemIcon sx={{ minWidth: 36 }}><Icon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} /></ListItemIcon>
+          <ListItemText primary={link.label} primaryTypographyProps={{ fontWeight: 500, fontSize: '0.9rem' }} />
+          <OpenInNewIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+        </ListItemButton>;
+      })}
       <ListItemButton
         component="a"
         href={CONTACT_MAILTO}
@@ -290,14 +316,37 @@ function App() {
             </Box>
           )}
 
-          <Tooltip title={`Contact us by email: ${CONTACT_EMAIL}`}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0,
+            '& > .MuiIconButton-root, & > nav .MuiIconButton-root, & > .MuiBox-root > .MuiIconButton-root': {
+              width: 36, height: 36, p: 0,
+            },
+            '& > .MuiBox-root > .MuiIconButton-root .MuiAvatar-root': { width: 30, height: 30 },
+          }}>
+          {!isMobile && <Box component="nav" aria-label="Project links" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+            {PROJECT_LINKS.map(link => {
+              const Icon = link.icon;
+              return <Tooltip key={link.label} title={link.label}>
+                <IconButton
+                  component="a"
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={link.label}
+                  size="small"
+                  sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: 'action.hover' } }}
+                ><Icon sx={{ fontSize: '1.1rem' }} /></IconButton>
+              </Tooltip>;
+            })}
+          </Box>}
+
+          <Tooltip title="Contact">
             <IconButton
               component="a"
               href={CONTACT_MAILTO}
               size="small"
-              aria-label="Contact us by email"
+              aria-label="Contact"
               sx={{
-                mr: 1,
                 color: 'text.secondary',
                 '&:hover': {
                   backgroundColor: 'action.hover',
@@ -312,10 +361,10 @@ function App() {
           {/* Dark mode toggle */}
           <Tooltip title={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
             <IconButton
+              aria-label={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}
               onClick={toggleTheme}
               size="small"
               sx={{
-                mr: 1,
                 color: 'text.secondary',
                 '&:hover': {
                   backgroundColor: 'action.hover',
@@ -328,6 +377,7 @@ function App() {
           </Tooltip>
 
           <AccountMenu />
+          </Box>
         </Toolbar>
       </AppBar>
 

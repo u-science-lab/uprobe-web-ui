@@ -28,7 +28,7 @@ const Design: React.FC = () => {
       title: 'Design Workflow',
       description: 'Use our intelligent workflow to complete the entire probe design process step by step',
       features: ['DNA/RNA support', 'Smart Parameter Optimization', 'Batch Processing'],
-      image: '/4.jpeg',
+      image: '/design-workflow-v1.png',
       path: '/design/designworkflow',
       color: theme.palette.primary.main,
       icon: <AutoAwesome />,
@@ -39,7 +39,7 @@ const Design: React.FC = () => {
       title: 'Custom Probe',
       description: 'Flexible probe structure design for experienced users with customizable probe attributes',
       features: ['DNA/RNA support', 'Custom probe structure', 'Custom probe attributes'],
-      image: '/3.webp',
+      image: '/custom-probe-v1.png',
       path: '/design/customprobe',
       color: theme.palette.secondary.main,
       icon: <Build />,
@@ -123,7 +123,8 @@ const Design: React.FC = () => {
                         sx={{
                           width: '100%',
                           height: '100%',
-                          objectFit: 'cover',
+                          objectFit: 'contain',
+                          backgroundColor: '#f8fafc',
                           transition: 'transform 0.3s ease',
                         }}
                       />

@@ -1,3 +1,4 @@
+import { normalizeTargetInputs } from './utils/targetInputs';
 import axios from 'axios';
 import { ApiResponse } from './types';
 import { AUTH_CONFIG, getToken } from './utils';
@@ -571,7 +572,7 @@ class ApiService {
     const formData = new FormData();
     
     // Convert config data to YAML format
-    const yamlContent = yaml.dump(data, {
+    const yamlContent = yaml.dump(normalizeTargetInputs(data), {
       indent: 2,
       lineWidth: -1,
       noRefs: true,

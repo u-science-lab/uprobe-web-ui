@@ -1757,7 +1757,8 @@ const DesignWorkflow: React.FC = () => {
       navigate('/task');
     } catch (error) {
       console.error('Failed to submit task:', error);
-      setAlert(true, 'Failed to submit task. Please try again.', 'error');
+      const detail = (error as any)?.response?.data?.detail;
+      setAlert(true, typeof detail === 'string' ? detail : error instanceof Error ? error.message : 'Failed to submit task. Please try again.', 'error');
       setProgress(0);
     } finally {
       setSubmitting(false);

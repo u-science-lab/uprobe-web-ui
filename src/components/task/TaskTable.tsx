@@ -230,12 +230,17 @@ const TaskTable: React.FC<TaskTableProps> = ({
               <TableCell>
                   <Chip
                     icon={task.no_filtered_probes && task.status === 'completed' ? <ErrorOutlineIcon fontSize="small" /> : statusIcons[task.status as keyof typeof statusIcons]}
-                    label={task.no_filtered_probes && task.status === 'completed' ? 'No passing probes' : task.status === "pending" ? "Queued" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                    label={task.status === 'running' && task.phase === 'validating' ? 'Validating' : task.status === 'failed' && task.phase === 'validation_failed' ? 'Validation failed' : task.no_filtered_probes && task.status === 'completed' ? 'No passing probes' : task.status === "pending" ? "Queued" : task.status === 'running' ? 'Designing' : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                     color={task.no_filtered_probes && task.status === 'completed' ? 'warning' : getStatusColor(task.status)}
                     size="small"
                     sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
                   />
 
+                {task.status === 'failed' && task.error_message && (
+                  <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1, maxWidth: 280, overflowWrap: 'anywhere' }}>
+                    {task.error_message}
+                  </Typography>
+                )}
                 <Box sx={{ mt: 1, maxWidth: 240 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                     <LinearProgress

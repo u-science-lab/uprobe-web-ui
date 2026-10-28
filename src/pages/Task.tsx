@@ -134,7 +134,7 @@ const Task: React.FC = () => {
       );
       
       if (!htmlFileEntry) {
-        throw new Error("No HTML file found in the archive.");
+        throw new Error("No HTML report was generated for this task. Check task details and whether the workflow produced valid probes.");
       }
 
       const mainHtmlContent = await htmlFileEntry.async('text');
@@ -223,7 +223,7 @@ const Task: React.FC = () => {
       console.error('Failed to create self-contained report:', error);
       setSnackbar({
         open: true,
-        message: "Failed to open report. See console for details.",
+        message: error instanceof Error ? error.message : "Unable to open the report. Check task details or try downloading the results.",
         severity: "error",
       });
     }

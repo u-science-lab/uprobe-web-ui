@@ -12,6 +12,7 @@ export interface Task {
   description: string;
   status: "pending" | "running" | "completed" | "failed" | "paused" | "queued";
   progress: number;
+  phase?: 'queued' | 'validating' | 'designing' | 'validation_failed' | null;
   created_at: string;
   updated_at: string;
   genome: string;

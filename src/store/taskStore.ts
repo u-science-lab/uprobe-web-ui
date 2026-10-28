@@ -40,6 +40,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
           name: task.name || 'Unnamed Task',
           description: task.description || 'Uprobe design task',
           status: task.status,
+          phase: task.phase,
           progress: task.progress || 0,
           created_at: task.created_at || new Date().toISOString(),
           updated_at: task.updated_at || new Date().toISOString(),

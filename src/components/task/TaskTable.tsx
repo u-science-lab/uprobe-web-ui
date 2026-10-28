@@ -236,6 +236,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
                   />
 
+
                 <Box sx={{ mt: 1, maxWidth: 240 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                     <LinearProgress

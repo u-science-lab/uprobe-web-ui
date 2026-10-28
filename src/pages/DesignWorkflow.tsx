@@ -109,16 +109,6 @@ interface Target {
   [key: string]: string | number | undefined;  // Allow dynamic barcode fields
 }
 
-const GENOME_DISPLAY_MAP: Record<string, string> = {
-  hg38:   'Homo sapiens (Human): hg38',
-  hg19:   'Homo sapiens (Human): hg19',
-  GRCm39: 'Mus musculus (Mouse): GRCm39',
-  mm10:   'Mus musculus (Mouse): mm10',
-  dog:    'Canis lupus familiaris (Dog): dog',
-};
-
-const getGenomeLabel = (id: string) => GENOME_DISPLAY_MAP[id] ?? id;
-
 // Helper function to get probe structure (DNA/RNA)
 const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
   if (!customType) return 'RNA'; // Default for built-in types
@@ -1906,7 +1896,7 @@ const DesignWorkflow: React.FC = () => {
       <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
           title="Genome" 
-          subheader={species ? getGenomeLabel(species) : "Select the reference genome"}
+          subheader={species ? species : "Select the reference genome"}
           action={
             <IconButton onClick={() => toggleSection('species')}>
               {expandedSections.species ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -1924,7 +1914,7 @@ const DesignWorkflow: React.FC = () => {
               >
                 {speciesOptions.map((speciesOption) => (
                   <MenuItem key={speciesOption} value={speciesOption}>
-                    {getGenomeLabel(speciesOption)}
+                    {speciesOption}
                   </MenuItem>
                 ))}
               </Select>
@@ -2675,7 +2665,7 @@ const DesignWorkflow: React.FC = () => {
       <Box sx={{ position: 'sticky', bottom: 0, zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 -4px 18px rgba(15,23,42,0.04)' }}>
         <Box>
           <Typography variant="body2" fontWeight={600}>{probeType || 'Select a probe structure'} · {targetList.filter(item => item.target.trim()).length} targets</Typography>
-          <Typography variant="caption" color="text.secondary">{species ? getGenomeLabel(species) : 'Select a genome'} · Review your configuration before submitting</Typography>
+          <Typography variant="caption" color="text.secondary">{species ? species : 'Select a genome'} · Review your configuration before submitting</Typography>
         </Box>
         <Button
           variant="contained"

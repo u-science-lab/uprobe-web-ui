@@ -1,3 +1,4 @@
+import { clearEncodingValues, encodingCsvValue } from '../utils/encodingFields';
 import TargetLayoutEditor from '../components/TargetLayoutEditor';
 import TargetLengthEditor from '../components/TargetLengthEditor';
 import { editProbePart, rewritePartReferences } from '../utils/structureEditing';
@@ -633,11 +634,13 @@ const DesignWorkflow: React.FC = () => {
             findBarcodes(probe);
           });
           
-          barcodeCount = barcodeSet.size;
+          barcodeCount = extractParametersFromYaml(YAML.stringify(typedConfig))?.barcodeCount || barcodeSet.size;
 
           // Generate dummy YAML content for submission compatibility
           const yamlObj = {
             name: name,
+            description: typedConfig.description,
+            barcodes: typedConfig.barcodes,
             extracts: typedConfig.extracts,
             probes: typedConfig.probes,
             attributes: typedConfig.attributes,
@@ -663,6 +666,7 @@ const DesignWorkflow: React.FC = () => {
           builtinTypes.push({
             id: `builtin_${name}`,
             name: name,
+            description: typedConfig.description,
             type: 'builtin',
             sortDefaults,
             extraFilters: Object.fromEntries(Object.entries(filters).filter(([key]) => !(key in attributes) || String(attributes[key]?.target || '').startsWith('target_parts.'))),
@@ -715,6 +719,7 @@ const DesignWorkflow: React.FC = () => {
     const parsed = YAML.parse(type.yamlContent);
     if (!parsed || typeof parsed !== 'object') throw new Error('Invalid probe template');
     const restored = type.type === 'builtin' ? type : { ...type, ...restoreTemplate(parsed), barcodeConfig: extractParametersFromYaml(type.yamlContent)?.barcodeConfig };
+    if (selectedCustomType && selectedCustomType.id !== restored.id) setTargetList(clearEncodingValues(targetList));
     setSelectedCustomType(restored);
     setMinLength(restored.targetConfig?.length ?? restored.targetLength ?? 100);
     setStep(samplingStep({ ...(parsed.extracts?.target_region || parsed.target_sequence || {}), length: restored.targetConfig?.length ?? restored.targetLength ?? 100, step: restored.step }));
@@ -762,8 +767,7 @@ const DesignWorkflow: React.FC = () => {
             }
 
             // Get all column names from the first row
-            const headers = Object.keys(results.data[0]);
-            const barcodeColumns = headers.filter(h => h.startsWith('barcode'));
+
             
             const parsedData = results.data.map((row, index) => {
               // Validate required fields
@@ -783,12 +787,7 @@ const DesignWorkflow: React.FC = () => {
               if (selectedCustomType?.barcodeCount) {
                 for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
                   const barcodeKey = `barcode${i}`;
-                  // Check if the barcode exists in the file
-                  if (barcodeColumns.includes(barcodeKey)) {
-                    targetObj[barcodeKey] = row[barcodeKey] || '';
-                  } else {
-                    targetObj[barcodeKey] = '';
-                  }
+                  targetObj[barcodeKey] = encodingCsvValue(row, barcodeKey, selectedCustomType.barcodeConfig?.barcodes?.[barcodeKey]);
                 }
               }
 
@@ -1436,7 +1435,7 @@ const DesignWorkflow: React.FC = () => {
         const targetBarcodes: any = {};
         for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
           const barcodeKey = `barcode${i}`;
-          const bcKey = `BC${i}`;
+          const bcKey = selectedCustomType.barcodeConfig?.barcodes?.[barcodeKey]?.name || `BC${i}`;
           if ((item as any)[barcodeKey]) {
             targetBarcodes[bcKey] = (item as any)[barcodeKey];
           }
@@ -1987,6 +1986,7 @@ const DesignWorkflow: React.FC = () => {
             {selectedCustomType && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
               {selectedCustomType.type === 'builtin' ? 'Built-in template' : 'Saved template'} · Changes apply to this task; the saved template remains unchanged.
             </Typography>}
+            {selectedCustomType?.description && <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{selectedCustomType.description}</Typography>}
             {/* Custom Probe Parameters Section */}
             {selectedCustomType && (
               <Box id="design-parameters" sx={{ mt: 3, scrollMarginTop: 16 }}>
@@ -2228,7 +2228,7 @@ const DesignWorkflow: React.FC = () => {
             <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
               <strong>CSV Format Required:</strong> The first row must be a header. <code>target</code> is required, <code>sequence</code> is optional.<br />
               {selectedCustomType?.barcodeCount ? 
-                `Header format: target,sequence${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')}` :
+                `Header format: target,sequence${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,${selectedCustomType.barcodeConfig?.barcodes?.[`barcode${i + 1}`]?.name || `barcode${i + 1}`}`).join('')}` :
                 'Header format: target,sequence'}<br />
               <em>Note: You can leave sequence or barcodes empty in the CSV and configure them later in the UI.</em>
             </Typography>
@@ -2301,7 +2301,8 @@ const DesignWorkflow: React.FC = () => {
                         const value = String(item[barcodeKey] || '');
                         const invalid = value.length > 0 && !validateManualBarcode(value, barcodeKey);
                         const expectedLength = getExpectedBarcodeLength(barcodeKey);
-                        const barcodeLabel = `BC${barcodeIndex + 1}${expectedLength === undefined ? '' : ` · ${expectedLength} bp`}`;
+                        const barcodeInfo = selectedCustomType.barcodeConfig?.barcodes?.[barcodeKey];
+                        const barcodeLabel = `${barcodeInfo?.description || barcodeInfo?.name || `BC${barcodeIndex + 1}`}${expectedLength === undefined ? '' : ` · ${expectedLength} bp`}`;
                         const options = barcodeLibrary.filter(entry => expectedLength === undefined || entry.sequence.length === expectedLength);
                         return (
                           <Grid item key={barcodeIndex} xs={12} sm={6} lg="auto" sx={{ width: { lg: 240 }, minWidth: 0, flexShrink: 0 }}>

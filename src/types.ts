@@ -1,3 +1,4 @@
+import { encodingFields } from './utils/encodingFields';
 import { TargetLayout } from './utils/targetLayout';
 import { TargetLength, samplingStep } from './utils/sampling';
 import yaml from 'js-yaml';
@@ -112,6 +113,7 @@ export interface WorkflowFilter {
 }
 
 export interface CustomProbeType {
+  description?: string;
   extraFilters?: Record<string, WorkflowFilter>;
   sortDefaults?: { category: string; field: string; order: 'asc' | 'desc' }[];
   id: string;
@@ -138,6 +140,7 @@ export interface CustomProbeType {
     barcodes: Record<string, {
       name: string;
       length?: number;
+      description?: string;
     }>;
   };
   probes?: Record<string, ProbeConfig>;
@@ -178,36 +181,14 @@ export const extractParametersFromYaml = (yamlContent: string) => {
     parameters.targetLength = parsed.target_sequence_length;
   }
 
-  // Extract barcode configuration
-  if (parsed.barcode_config) {
-    parameters.barcodeConfig = {
-      count: parsed.barcode_config.count,
-      default_length: parsed.barcode_config.default_length,
-      barcodes: parsed.barcode_config.barcodes || {}
-    };
-  } else if (parsed.barcodes) {
-    // Handle the format used in CustomProbe page and downloaded configs
-    const barcodes = parsed.barcodes.barcodes || {};
-    const barcodeEntries: Record<string, { name: string; length?: number }> = {};
-    
-    // Convert BC1, BC2 format to barcode1, barcode2 format for internal use
-    Object.entries(barcodes).forEach(([key, config]: [string, any]) => {
-      if (key.startsWith('BC')) {
-        const barcodeIndex = key.replace('BC', '');
-        const barcodeKey = `barcode${barcodeIndex}`;
-        barcodeEntries[barcodeKey] = {
-          name: key,
-          length: config.length
-        };
-      }
-    });
-    
-    parameters.barcodeConfig = {
-      count: parsed.barcodes.count,
-      default_length: parsed.barcodes.default_length,
-      barcodes: barcodeEntries
-    };
-  }
+  // Resolve declared and expression-based encoding keys consistently.
+  const fields = encodingFields(parsed);
+  if (parsed.barcode_config) parameters.barcodeConfig = parsed.barcode_config;
+  else if (Object.keys(fields).length) parameters.barcodeConfig = {
+    count: Math.max(...Object.keys(fields).map(key => Number(key.slice(7)))),
+    default_length: parsed.barcodes?.default_length,
+    barcodes: fields
+  };
 
   const region = parsed.extracts?.target_region || parsed.target_sequence;
   if (region?.length !== undefined) {
@@ -243,7 +224,7 @@ export const extractParametersFromYaml = (yamlContent: string) => {
       findBarcodes(probe);
     });
     
-    parameters.barcodeCount = barcodeSet.size;
+    parameters.barcodeCount = parameters.barcodeConfig?.count || barcodeSet.size;
     
     // Extract part lengths for RCA probes
     if (parsed.probes.circle_probe && parsed.probes.circle_probe.parts) {

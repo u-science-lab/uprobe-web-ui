@@ -27,6 +27,6 @@ dist-ssr
 *.cursor/
 *.vscode
 
-**/deployment
+deployment/
 
 **/tests

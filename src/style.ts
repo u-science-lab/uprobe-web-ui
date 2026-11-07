@@ -91,14 +91,8 @@ export interface GenomeFile {
   updatedAt: string;
 }
 
-export interface ProbeConfig {
-  template: string;
-  parts: Record<string, {
-    expr: string;
-    attributes?: Record<string, any>;
-  }>;
-  attributes?: Record<string, any>;
-}
+export type { ProbeConfig } from './types';
+import type { ProbeConfig } from './types';
 
 export interface CustomProbeType {
   id: string;

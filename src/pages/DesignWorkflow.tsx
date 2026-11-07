@@ -72,7 +72,8 @@ import SequenceFilters from '../components/SequenceFilters';
 import AttributeTable from '../components/AttributeTable';
 
 import YAML from 'yaml';
-import { restoreTemplate, exportAttribute } from '../utils/probeConfig';
+import { restoreTemplate } from '../utils/probeConfig';
+import { collectAttributes } from '../utils/probeBuilder';
 import { useDraftState } from '../utils/useDraftState';
 import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
 
@@ -1493,56 +1494,16 @@ const DesignWorkflow: React.FC = () => {
       }
     }
 
-    // Attribute config - use expected naming format
+    // Use the same recursive attribute projection as the Custom Probe builder.
+    const collected = selectedCustomType ? collectAttributes(selectedCustomType.probes || {}, {
+      source: selectedCustomType.targetConfig?.source || 'exon',
+      length: minLength,
+      attributes: selectedCustomType.targetConfig?.attributes,
+    }) : { attributes: {}, filters: {} };
     if (selectedCustomType) {
-      const attributes: any = Object.fromEntries(Object.entries(YAML.parse(selectedCustomType.yamlContent || '{}')?.attributes || {}).filter(([, value]) => String((value as any).target || '').startsWith('target_parts.')));
-      
-      // Target region attributes
-      if (selectedCustomType.targetConfig?.attributes) {
-        Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
-          if (attrValue.enabled) {
-            const attributeKey = attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`;
-            attributes[attributeKey] = exportAttribute(attrValue, attrName, 'target_region');
-          }
-        });
-      }
-      
-      // Probe attributes - use expected naming format (probe1 instead of probe_1)
-      if (selectedCustomType.probes) {
-        Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
-          const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
-          
-          // Probe level attributes
-          if (probeConfig.attributes) {
-            Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
-              if (attrValue.enabled) {
-                const attributeKey = attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
-                attributes[attributeKey] = exportAttribute(attrValue, attrName, probeName);
-              }
-            });
-          }
-          
-          // Part level attributes - use dot separator
-          if (probeConfig.parts) {
-            Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
-              const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
-              
-              if (partConfig.attributes) {
-                Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
-                  if (attrValue.enabled) {
-                    const attributeKey = attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
-                    attributes[attributeKey] = exportAttribute(attrValue, attrName, `${probeName}.${partName}`);
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-      
-      if (Object.keys(attributes).length > 0) {
-        config.attributes = attributes;
-      }
+      const preserved = Object.fromEntries(Object.entries(YAML.parse(selectedCustomType.yamlContent || '{}')?.attributes || {}).filter(([, value]) => String((value as any).target || '').startsWith('target_parts.')));
+      const attributes = { ...preserved, ...collected.attributes };
+      if (Object.keys(attributes).length) config.attributes = attributes;
     }
 
     // Post-processing config
@@ -1550,69 +1511,15 @@ const DesignWorkflow: React.FC = () => {
     
     // 1. Filters
     if (enableBasicFilter && selectedCustomType) {
-      const filters: any = Object.fromEntries(Object.entries(selectedCustomType.extraFilters || {}).map(([name, rule]) => [name, { ...rule }]));
+      const filters = { ...selectedCustomType.extraFilters, ...collected.filters };
       for (const rule of Object.values(filters) as WorkflowFilter[]) {
         if (rule.type !== 'sequence_pattern') continue;
         rule.exclude_patterns = rule.exclude_patterns?.map(pattern => pattern.trim()).filter(Boolean);
         if (!rule.target || !rule.exclude_patterns?.length) throw new Error('Sequence exclusions require a target and at least one pattern.');
-        // Expressions are interpreted by the backend Python regex engine.
       }
-      
-      // Target region filtering
-      if (selectedCustomType.targetConfig?.attributes) {
-        Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
-          if (attrValue.enabled) {
-            const filterName = attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`;
-            const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
-            if (condition) {
-              filters[filterName] = { condition };
-            }
-          }
-        });
-      }
-      
-      // Probe and part filtering - use expected naming format
-      if (selectedCustomType.probes) {
-        Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
-          const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
-          
-          if (probeConfig.attributes) {
-            Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
-              if (attrValue.enabled) {
-                const filterName = attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
-                const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
-                if (condition) {
-                  filters[filterName] = { condition };
-                }
-              }
-            });
-          }
-          
-          if (probeConfig.parts) {
-            Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
-              const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
-              
-              if (partConfig.attributes) {
-                Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
-                  if (attrValue.enabled) {
-                    const filterName = attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
-                    const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
-                    if (condition) {
-                      filters[filterName] = { condition };
-                    }
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-      
-      if (Object.keys(filters).length > 0) {
-        post_process.filters = filters;
-      }
+      if (Object.keys(filters).length) post_process.filters = filters;
     }
-    
+
     // 2. Avoid off-target - modified to array format
     if (enableAvoidOtp && Object.keys(avoidOtpConfig).length > 0) {
       const avoid_otp: any = {};
@@ -2137,7 +2044,7 @@ const DesignWorkflow: React.FC = () => {
                                     <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
                                       {formatPartName(partName)}
                                     </Typography>
-                                    <Button size="small" onClick={() => { setPartEditError(''); setPartEditor({ probe: probeName, before: partName, name: partName, expr: partConfig.expr }); }}>Edit part</Button>
+                                    {partConfig.expr !== undefined && <Button size="small" onClick={() => { setPartEditError(''); setPartEditor({ probe: probeName, before: partName, name: partName, expr: partConfig.expr! }); }}>Edit part</Button>}
                                     <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{partConfig.expr}</Typography>
                                     <Typography variant="caption" color="text.secondary">
                                       Part of {formatProbeName(probeName)}

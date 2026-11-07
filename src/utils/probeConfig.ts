@@ -3,7 +3,7 @@ import { parseAttributeFilter } from './attributeFilters';
 export const attributeType = (name: string) => ({gcContent:'gc_content',foldScore:'fold_score',tm:'annealing_temperature',selfMatch:'self_match',mappedGenes:'mapped_genes',kmerCount:'kmer_count',mappedSites:'mapped_sites'} as Record<string,string>)[name] || (name === 'tm' ? 'annealing_temperature' : name);
 export function restoreTemplate(config: any) {
   const probes = JSON.parse(JSON.stringify(config.probes || {}));
-  const region = config.target_sequence || config.extracts?.target_region || {};
+  const region = config.extracts?.target_region || config.target_sequence || {};
   const targetConfig = { ...region, source: region.source || 'exon', sequence: region.sequence || '', attributes: { ...(region.attributes || {}) } };
   if (region.length !== undefined) { targetConfig.step = samplingStep(region); delete targetConfig.overlap; }
   const filters = config.post_process?.filters || {};
@@ -18,11 +18,14 @@ export function restoreTemplate(config: any) {
     return [name,{...attr,enabled:attr.enabled !== false, ...(rule?.condition !== undefined ? parseAttributeFilter(originalName, attributeType(name), rule.condition) : {}), originalName}];
   }));
   targetConfig.attributes = hydrate(targetConfig.attributes, 'target_region');
-  for (const [name, data] of Object.entries(probes)) {
-    const probe = data as any;
-    probe.attributes = hydrate(probe.attributes, name);
-    for (const [part, value] of Object.entries(probe.parts || {})) (value as any).attributes = hydrate((value as any).attributes, `${name}.${part}`);
-  }
+  const hydrateNodes = (nodes: any, prefix = '') => {
+    for (const [name, data] of Object.entries(nodes)) {
+      const node = data as any, path = prefix ? `${prefix}.${name}` : name;
+      node.attributes = hydrate(node.attributes, path);
+      if (node.parts) hydrateNodes(node.parts, path);
+    }
+  };
+  hydrateNodes(probes);
   for (const [name, data] of Object.entries(config.attributes || {})) {
     const attr = data as any;
     const target = attr.target?.replace(/:/g,'.');
@@ -32,11 +35,13 @@ export function restoreTemplate(config: any) {
       continue;
     }
     const value = {...attr,...parseAttributeFilter(name,attr.type,filters[name]?.condition),enabled:true,originalType:attr.type};
-    const scope = target === 'target_region' ? targetConfig : target.includes('.') ? probes[target.split('.')[0]]?.parts?.[target.split('.')[1]] : probes[target];
+    const path = target.split('.');
+    const scope = target === 'target_region' ? targetConfig : path.slice(1).reduce((node: any, key: string) => node?.parts?.[key], probes[path[0]]);
     if (!scope) throw new Error(`Attribute ${name} references missing sequence ${target}`);
     scope.attributes ||= {};
     const uiName = Object.entries({gcContent:'gc_content',foldScore:'fold_score',tm:'annealing_temperature',selfMatch:'self_match',mappedGenes:'mapped_genes',kmerCount:'kmer_count',mappedSites:'mapped_sites'}).find(([,type]) => type===attr.type)?.[0] || attr.type;
-    scope.attributes[scope.attributes[uiName] ? name : uiName] = value;
+    const existing = Object.keys(scope.attributes).find(key => scope.attributes[key].originalName === name);
+    scope.attributes[existing || (scope.attributes[uiName] ? name : uiName)] = { ...(existing ? scope.attributes[existing] : {}), ...value };
     used.add(name); aliases[name]={category:target==='target_region'?'Target Sequence':target.includes('.')?'Part Attributes':'Probe Attributes',field:name};
   }
   const sortDefaults:any[]=[];
@@ -46,26 +51,10 @@ export function restoreTemplate(config: any) {
   }
   return {probes,targetConfig,sortDefaults,extraFilters:Object.fromEntries(Object.entries(filters).filter(([key])=>!used.has(key))) as Record<string, any>};
 }
-export function validateProbeDependencies(probes: any[]) {
-  const names=probes.map((p,i)=>p.name || `probe_${i+1}`);
-  if(names.some(name=>!/^[_a-zA-Z]\w*$/.test(name))) return 'Probe names must be identifiers: letters, digits and underscores, starting with a letter or underscore.';
-  if(new Set(names).size!==names.length) return 'Probe names must be unique.';
-  const ids=new Set(probes.map(p=>p.id));
-  const visiting=new Set<string>(),done=new Set<string>();
-  const visit=(id:string):boolean=> {
-    if(visiting.has(id)) return false;
-    if(done.has(id)) return true;
-    visiting.add(id);
-    const probe=probes.find(p=>p.id===id);
-    for(const part of probe?.parts || []) if(part.source==='probe' && (!ids.has(part.sourceProbeId) || !visit(part.sourceProbeId)))return false;
-    visiting.delete(id);done.add(id);return true;
-  };
-  return probes.every(p=>visit(p.id)) ? '' : 'Probe references must exist and must not form a cycle.';
-}
-
 export function exportAttribute(value: any, name: string, target: string) {
   const type = value.originalType || attributeType(name);
-  const result: any = { target, type };
+  const uiFields = new Set(['enabled','originalName','originalType','filterEnabled','filterExpression','min','max','minInclusive','maxInclusive']);
+  const result: any = { ...Object.fromEntries(Object.entries(value).filter(([key]) => !uiFields.has(key))), target, type };
   for (const key of ['min_mapq','kmer_len','threads','size','temperature','sodium','magnesium','dntp','dna_conc']) {
     if (value[key] !== undefined) result[key] = value[key];
   }

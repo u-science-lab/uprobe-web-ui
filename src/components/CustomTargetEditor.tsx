@@ -52,8 +52,8 @@ export default function CustomTargetEditor({ value, onChange, onRename, onValidi
     </Box>}
     {error && <Typography color="error" variant="body2">{error}</Typography>}
     <Accordion disableGutters elevation={0} sx={{ '&:before': { display: 'none' } }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}><Typography variant="body2">Advanced</Typography></AccordionSummary>
-      <AccordionDetails sx={{ px: 0 }}><Stack spacing={3}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: { xs: 2, sm: 3 } }}><Typography variant="body2">Advanced</Typography></AccordionSummary>
+      <AccordionDetails sx={{ px: { xs: 2, sm: 3 }, pt: 1, pb: 3 }}><Stack spacing={3}>
         <TextField size="small" type="number" label="Step (nt)" value={value.step ?? 1} inputProps={{ min: 1 }} sx={{ width: 180 }} onChange={e => onChange({ ...value, step: Number(e.target.value) })} />
         <Typography variant="body2" fontWeight={600}>Target attributes</Typography>
         <ProbeAttributesEditor dna={value.source === 'genome'} value={value.attributes} onChange={attributes => onChange({ ...value, attributes })} />

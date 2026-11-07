@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Box, Button, MenuItem, Stack, TextField, FormControlLabel, Switch, Typography } from '@mui/material';
+import { Box, Button, IconButton, MenuItem, Stack, TextField, FormControlLabel, Switch, Tooltip, Typography } from '@mui/material';
+import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { attributeType } from '../utils/probeConfig';
 
 const choices: Record<string, string> = { length: 'Length', gc_content: 'GC content', fold_score: 'Fold score', tm: 'Melting temperature', self_match: 'Self match', mapped_genes: 'Mapped genes', kmer_count: 'K-mer count', mapped_sites: 'Mapped sites' };
@@ -16,7 +18,19 @@ export default function ProbeAttributesEditor({ value = {}, onChange, dna }: { v
       const type = attr.originalType || attributeType(name);
       const label = choices[name] || Object.keys(choices).find(key => attributeType(key) === type) && choices[Object.keys(choices).find(key => attributeType(key) === type)!] || name;
       return <Box key={name}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="body2" fontWeight={600}>{label}</Typography><Button size="small" onClick={() => update(name, { enabled: false })}>Remove</Button></Stack>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="body2" fontWeight={600}>{label}</Typography>
+          <Tooltip title={`Remove ${label}`}>
+            <IconButton
+              size="small"
+              aria-label={`Remove ${label}`}
+              onClick={() => update(name, { enabled: false })}
+              sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+            >
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
         <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
           <FormControlLabel label="Filter" control={<Switch size="small" checked={attr.filterEnabled !== false} onChange={(_, checked) => update(name, { filterEnabled: checked })} />} />
           {attr.filterEnabled !== false && ['min','max'].map(bound => <TextField key={bound} size="small" type="number" label={bound === 'min' ? 'Minimum' : 'Maximum'} sx={{ width: 135 }} value={attr[bound] ?? ''} onChange={e => update(name, { [bound]: e.target.value === '' ? undefined : Number(e.target.value) }, true)} />)}
@@ -28,9 +42,9 @@ export default function ProbeAttributesEditor({ value = {}, onChange, dna }: { v
         {attr.filterExpression && attr.min === undefined && attr.max === undefined && <Typography variant="caption" color="text.secondary">Saved custom filter retained</Typography>}
       </Box>;
     })}
-    <Stack direction="row" spacing={1}>
-      <TextField select size="small" label="Attribute" value={selected} sx={{ minWidth: 190 }} onChange={e => setSelected(e.target.value)}>{Object.entries(choices).filter(([key]) => !(['mapped_genes'].includes(key) && dna) && !( ['kmer_count','mapped_sites'].includes(key) && !dna)).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}</TextField>
-      <Button onClick={() => onChange({ ...value, [selected]: { ...(defaults[selected] || {}), ...value[selected], enabled: true } })}>Add attribute</Button>
+    <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+      <TextField select size="small" label="Attribute" value={selected} sx={{ minWidth: 190, maxWidth: '100%' }} onChange={e => setSelected(e.target.value)}>{Object.entries(choices).filter(([key]) => !(['mapped_genes'].includes(key) && dna) && !( ['kmer_count','mapped_sites'].includes(key) && !dna)).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}</TextField>
+      <Button size="small" startIcon={<AddOutlinedIcon fontSize="small" />} onClick={() => onChange({ ...value, [selected]: { ...(defaults[selected] || {}), ...value[selected], enabled: true } })}>Add attribute</Button>
     </Stack>
   </Stack>;
 }

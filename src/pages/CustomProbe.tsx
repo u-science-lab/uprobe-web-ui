@@ -18,8 +18,10 @@ import { useDraftState } from '../utils/useDraftState';
 import { restoreTemplate } from '../utils/probeConfig';
 import {
   TargetConfig, BarcodeConfig, compileProtocol, createProbe, normalizeProbes,
-  walkProbes, updateNode, renameTargetRegion,
+  walkProbes, updateNode,
 } from '../utils/probeBuilder';
+import { renameTargetReferences, targetRegionReferences, usesBarcode } from '../utils/probeReferences';
+import { saveCustomMethod } from '../utils/customProbeSave';
 
 interface BuilderDraft {
   id: string;
@@ -47,6 +49,17 @@ const readProtocol = (text: string) => {
 };
 const panelStyle = { p: { xs: 2, sm: 2.5 }, minWidth: 0, boxShadow: 'none' };
 const disclosureStyle = { '&:before': { display: 'none' }, boxShadow: 'none' };
+const localIconStyle = {
+  minWidth: 40, minHeight: 40, color: 'text.secondary',
+  '&:hover': { color: 'primary.main', bgcolor: 'action.hover' },
+  '&.Mui-disabled': { color: 'action.disabled' },
+  '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+};
+const deleteIconStyle = {
+  ...localIconStyle, color: 'error.main',
+  '&:hover': { color: 'error.main', bgcolor: 'action.hover' },
+  '&:focus-visible': { outline: '2px solid', outlineColor: 'error.main', outlineOffset: 2 },
+};
 
 export default function CustomProbe() {
   const navigate = useNavigate();
@@ -56,6 +69,7 @@ export default function CustomProbe() {
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [scope, setScope] = useState('probe_1');
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [validity, setValidity] = useState({ basic: true, advanced: true });
   const [dirty, setDirty] = useDraftState<boolean>('custom.canonical.dirty', false);
@@ -66,6 +80,7 @@ export default function CustomProbe() {
   const [replaceAction, setReplaceAction] = useState<(() => void) | null>(null);
 
   const patch = (values: Partial<BuilderDraft>) => {
+    if (Object.entries(values).every(([key, value]) => JSON.stringify(draft[key as keyof BuilderDraft]) === JSON.stringify(value))) return;
     setDraft(previous => ({ ...previous, ...values }));
     setDirty(true);
   };
@@ -94,6 +109,7 @@ export default function CustomProbe() {
     setRevision(n => n + 1);
     setValidity({ basic: true, advanced: true });
     setPendingSegment(false); setDirty(false); setMessage(null);
+    setSelectedSegment(null);
   };
   const newMethod = () => replaceDraft(() => {
     setDraft(fresh()); setScope('probe_1'); resetEditor();
@@ -137,17 +153,21 @@ export default function CustomProbe() {
         yamlContent: yaml.dump(protocol, { noRefs: true, lineWidth: -1 }),
       };
       setBusy(true);
-      await ApiService.saveCustomProbe(group);
-      setDirty(false);
-      setHistory(await ApiService.getCustomProbes());
-      setMessage({ text: 'Method saved.', error: false });
-      if (use) navigate('/design/designworkflow?template=' + encodeURIComponent(group.name));
+      await saveCustomMethod(() => ApiService.saveCustomProbe(group), () => ApiService.getCustomProbes(), {
+        saved: () => { setDirty(false); setMessage({ text: 'Method saved.', error: false }); },
+        refreshed: setHistory,
+        refreshFailed: () => {
+          if (!use) setMessage({ text: 'Method saved. Saved methods could not refresh; reopen the list to retry.', error: false });
+        },
+        use: use ? () => navigate('/design/designworkflow?template=' + encodeURIComponent(group.name)) : undefined,
+      });
     } catch (error) { report(error); } finally { setBusy(false); }
   };
 
   const scopes: { path: string; node: ProbeConfig }[] = [];
   walkProbes(draft.probes, (node, path) => scopes.push({ path, node }));
-  const activeScope = scopes.find(item => item.path === scope) || scopes[0];
+  const activeScope = scopes.find(item => item.path === scope);
+  const selectedScope = scopes.find(item => item.path === selectedSegment);
   const renameScope = (before: string, after: string) => {
     setDraft(previous => {
       const seed = structuredClone(previous.seed);
@@ -161,21 +181,13 @@ export default function CustomProbe() {
       return { ...previous, seed };
     });
     setScope(previous => previous === before ? after : previous.startsWith(before + '.') ? after + previous.slice(before.length) : previous);
+    setSelectedSegment(previous => previous === before ? after : previous?.startsWith(before + '.') ? after + previous.slice(before.length) : previous);
     setDirty(true);
   };
   const changeTarget = (target: TargetConfig) => {
     const removed = Object.keys(draft.target.layout?.parts || {}).filter(name => !target.layout?.parts[name]);
-    let referenced = false;
-    walkProbes(draft.probes, node => {
-      const names = [...(node.expr || '').matchAll(/target_parts\s*\[\s*(['"])([^'"]+)\1\s*\]/g)].map(match => match[2]);
-      if (names.some(name => removed.includes(name))) referenced = true;
-    });
-    for (const filter of Object.values(draft.seed.post_process?.filters || {}) as any[]) {
-      const path = String(filter.target || '').replace(/:/g, '.');
-      if (removed.some(name => path === `target_parts.${name}` || path.startsWith(`target_parts.${name}.`))) referenced = true;
-    }
-    if (referenced) {
-      setMessage({ text: 'A segment or filter uses this target region. Update that reference before removing it.', error: true });
+    if (targetRegionReferences({ ...draft.seed, probes: draft.probes }, removed).length) {
+      setMessage({ text: 'A segment, attribute or saved filter uses this target region. Update that reference before removing it.', error: true });
       return;
     }
     patch({ target });
@@ -183,11 +195,7 @@ export default function CustomProbe() {
   const removeBarcode = () => {
     if (!deletingBarcode) return;
     const name = deletingBarcode;
-    let used = false;
-    walkProbes(draft.probes, node => {
-      if (node.expr?.includes(`'${name}'`) || node.expr?.includes(`"${name}"`)) used = true;
-    });
-    if (used) setMessage({ text: 'This barcode is used by a segment.', error: true });
+    if (usesBarcode(draft.probes, name)) setMessage({ text: 'This barcode is used by a segment.', error: true });
     else {
       const entries = { ...draft.barcodes.barcodes }; delete entries[name];
       patch({ barcodes: { ...draft.barcodes, barcodes: entries, count: Object.keys(entries).length } });
@@ -202,7 +210,10 @@ export default function CustomProbe() {
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ mb: 2 }}>
           <Typography variant="h6" fontWeight={600}>Custom Probe</Typography>
           <Stack direction="row" spacing={0.5}>
-            <Tooltip title={pendingHint}><span><Button disabled={busy || pendingSegment} onClick={() => setShowHistory(true)}>Saved methods</Button></span></Tooltip>
+            <Tooltip title={pendingHint}><span><Button disabled={busy || pendingSegment} onClick={() => {
+              setShowHistory(true);
+              void ApiService.getCustomProbes().then(setHistory).catch(() => setMessage({ text: 'Saved methods could not refresh. Existing entries are still available.', error: true }));
+            }}>Saved methods</Button></span></Tooltip>
             <Tooltip title={pendingHint}><span><Button disabled={busy || pendingSegment} onClick={newMethod}>New method</Button></span></Tooltip>
           </Stack>
         </Stack>
@@ -223,7 +234,7 @@ export default function CustomProbe() {
           onChange={probes => patch({ probes })} onBarcodes={barcodes => patch({ barcodes })}
           onRename={renameScope} inspectorContainer={inspectorContainer}
           onPendingChange={setPendingSegment}
-          onSelectionChange={path => { if (path) setScope(path.join('.')); }}
+          onSelectionChange={path => setSelectedSegment(path?.join('.') || null)}
         />
       </Paper>
 
@@ -235,8 +246,11 @@ export default function CustomProbe() {
             onValidity={valid => setValidity(previous => ({ ...previous, basic: valid }))}
             onChange={changeTarget}
             onRename={(layout, before, after) => {
-              patch({ target: { ...draft.target, layout }, probes: renameTargetRegion(draft.probes, before, after) });
-              renameScope(`target_parts.${before}`, `target_parts.${after}`);
+              patch({
+                target: { ...draft.target, layout },
+                probes: renameTargetReferences(draft.probes, before, after),
+                seed: renameTargetReferences(draft.seed, before, after),
+              });
             }}
           />
         </Paper>
@@ -253,12 +267,18 @@ export default function CustomProbe() {
           <Accordion disableGutters elevation={0} sx={disclosureStyle}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2">Filters &amp; Attributes</Typography></AccordionSummary>
             <AccordionDetails><Stack spacing={2}>
-              {activeScope && <>
-                <TextField select size="small" label="Sequence" value={activeScope.path} sx={{ maxWidth: 360 }} onChange={e => setScope(e.target.value)}>
+              <Typography variant="caption" color="text.secondary">Filter target is independent of the canvas selection.</Typography>
+              <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+                <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere', minWidth: 0 }}>Canvas selection: {selectedScope ? selectedScope.path.replace(/\./g, ' / ') : 'None'}</Typography>
+                {selectedScope && selectedScope.path !== scope && <Button size="small" onClick={() => setScope(selectedScope.path)}>Use selected segment</Button>}
+              </Stack>
+                <TextField select size="small" label="Filter target" value={activeScope?.path || ''} sx={{ maxWidth: 360 }} onChange={e => setScope(e.target.value)}>
+                  <MenuItem value="" disabled>Choose a sequence</MenuItem>
                   {scopes.map(({ path }) => <MenuItem key={path} value={path}>{path.replace(/\./g, ' / ')}</MenuItem>)}
                 </TextField>
+              {activeScope ? <>
                 <ProbeAttributesEditor dna={draft.target.source === 'genome'} value={activeScope.node.attributes} onChange={attributes => patch({ probes: updateNode(draft.probes, activeScope.path.split('.'), node => ({ ...node, attributes })) })} />
-              </>}
+              </> : <Typography variant="body2" color="text.secondary">Choose a filter target to edit its attributes.</Typography>}
             </Stack></AccordionDetails>
           </Accordion>
           <Divider />
@@ -268,7 +288,7 @@ export default function CustomProbe() {
               {Object.entries(draft.barcodes.barcodes).map(([name, value]) => <Stack key={name} direction="row" alignItems="center" gap={1.5} flexWrap="wrap">
                 <Typography variant="body2" sx={{ minWidth: 80 }}>{name}</Typography>
                 <TextField size="small" label="Length (nt)" type="number" inputProps={{ min: 1 }} sx={{ width: 160 }} value={value.length ?? draft.barcodes.default_length ?? ''} onChange={e => patch({ barcodes: { ...draft.barcodes, barcodes: { ...draft.barcodes.barcodes, [name]: { ...value, length: Number(e.target.value) } } } })} />
-                <Tooltip title={`Delete ${name}`}><IconButton size="small" aria-label={`Delete barcode ${name}`} onClick={() => setDeletingBarcode(name)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title={`Delete ${name}`}><IconButton size="small" sx={deleteIconStyle} aria-label={`Delete barcode ${name}`} onClick={() => setDeletingBarcode(name)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
               </Stack>)}
               {!Object.keys(draft.barcodes.barcodes).length && <Typography variant="body2" color="text.secondary">Define a barcode from a Barcode / Readout segment.</Typography>}
             </Stack></AccordionDetails>
@@ -297,11 +317,11 @@ export default function CustomProbe() {
       <DialogContent><Stack spacing={1}>
         {history.map(group => <Stack direction="row" key={group.id} alignItems="center" spacing={0.5}>
           <Button sx={{ textTransform: 'none', mr: 'auto', minWidth: 0, overflowWrap: 'anywhere' }} onClick={() => load(group)}>{group.name}</Button>
-          <Tooltip title="Download method"><IconButton size="small" aria-label={`Download ${group.name}`} onClick={() => {
+          <Tooltip title="Download method"><IconButton size="small" sx={localIconStyle} aria-label={`Download ${group.name}`} onClick={() => {
             const url = URL.createObjectURL(new Blob([group.yamlContent], { type: 'text/yaml' }));
             const link = document.createElement('a'); link.href = url; link.download = `${group.name}.yaml`; link.click(); URL.revokeObjectURL(url);
           }}><DownloadOutlinedIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Delete method"><IconButton size="small" aria-label={`Delete ${group.name}`} onClick={() => setDeleting(group)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Delete method"><IconButton size="small" sx={deleteIconStyle} aria-label={`Delete ${group.name}`} onClick={() => setDeleting(group)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
         </Stack>)}
         {!history.length && <Typography color="text.secondary">No saved methods</Typography>}
       </Stack></DialogContent>

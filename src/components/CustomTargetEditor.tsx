@@ -3,6 +3,7 @@ import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText,
   DialogTitle, IconButton, MenuItem, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
+import { alpha, Theme } from '@mui/material/styles';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
@@ -13,6 +14,28 @@ import ProbeAttributesEditor from './ProbeAttributesEditor';
 import { TargetConfig, rebalanceLayout, uniqueName, identifier } from '../utils/probeBuilder';
 import { layoutNames, TargetLayout } from '../utils/targetLayout';
 import { formatTargetLength, parseTargetLength, TargetLength } from '../utils/sampling';
+
+const localActionSx = {
+  minWidth: 40,
+  minHeight: 40,
+  borderRadius: 1,
+  color: 'text.secondary',
+  '&:hover': { color: 'primary.main', bgcolor: 'action.hover' },
+  '&.Mui-focusVisible': {
+    color: 'primary.main', bgcolor: 'action.focus',
+    outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2,
+  },
+  '&.Mui-disabled': { color: 'action.disabled' },
+};
+const destructiveActionSx = {
+  ...localActionSx,
+  color: 'error.main',
+  '&:hover': { color: 'error.main', bgcolor: (theme: Theme) => alpha(theme.palette.error.main, 0.1) },
+  '&.Mui-focusVisible': {
+    color: 'error.main', bgcolor: (theme: Theme) => alpha(theme.palette.error.main, 0.1),
+    outline: '2px solid', outlineColor: 'error.main', outlineOffset: 2,
+  },
+};
 
 interface Props {
   value: TargetConfig;
@@ -135,14 +158,13 @@ export default function CustomTargetEditor({ value, onChange, onRename, onValidi
         display: 'grid',
         gridTemplateColumns: { xs: 'minmax(0, 1fr) auto', sm: 'minmax(70px, 1fr) minmax(100px, 150px) auto' },
         alignItems: 'start', columnGap: 1, rowGap: 0.5,
-        '&:hover .region-actions, &:focus-within .region-actions': { opacity: 1 },
       }}>
         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0, pt: 0.5, gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
           <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{name}</Typography>
-          <Tooltip title={`Rename ${name}`}><IconButton size="small" aria-label={`Rename ${name}`}
+          <Tooltip title={`Rename ${name}`}><span><IconButton size="small" aria-label={`Rename ${name}`} sx={localActionSx}
             disabled={hasInvalidDraft} onClick={() => setRename({ before: name, after: name })}>
             <EditOutlinedIcon fontSize="inherit" />
-          </IconButton></Tooltip>
+          </IconButton></span></Tooltip>
         </Stack>
         <TextField size="small" label="Length (nt)" sx={{ minWidth: 0 }} value={regionText[name] ?? formatTargetLength(layout.parts[name].length)}
           error={!!regionErrors[name]} helperText={regionErrors[name] || (index === names.length - 1 ? 'Auto-balanced' : undefined)}
@@ -163,20 +185,16 @@ export default function CustomTargetEditor({ value, onChange, onRename, onValidi
               reportValidity(text, remaining);
             } catch { /* Invalid draft remains visible without altering the layout. */ }
           }} />
-        <Stack className="region-actions" direction="row" sx={{
-          pt: 0.5, opacity: { xs: 1, md: 0.55 },
-          '@media (hover: none)': { opacity: 1 },
-          '& .MuiIconButton-root:hover': { color: 'primary.main' },
-        }}>
-          <Tooltip title={`Move ${name} left`}><span><IconButton size="small" aria-label={`Move ${name} left`}
+        <Stack direction="row" sx={{ pt: 0.5 }}>
+          <Tooltip title={`Move ${name} left`}><span><IconButton size="small" aria-label={`Move ${name} left`} sx={localActionSx}
             disabled={index === 0 || hasInvalidDraft} onClick={() => moveRegion(index, -1)}><ArrowBackOutlinedIcon fontSize="inherit" /></IconButton></span></Tooltip>
-          <Tooltip title={`Move ${name} right`}><span><IconButton size="small" aria-label={`Move ${name} right`}
+          <Tooltip title={`Move ${name} right`}><span><IconButton size="small" aria-label={`Move ${name} right`} sx={localActionSx}
             disabled={index === names.length - 1 || hasInvalidDraft} onClick={() => moveRegion(index, 1)}><ArrowForwardOutlinedIcon fontSize="inherit" /></IconButton></span></Tooltip>
-          <Tooltip title={`Remove ${name}`}><span><IconButton size="small" aria-label={`Remove ${name}`}
+          <Tooltip title={`Remove ${name}`}><span><IconButton size="small" aria-label={`Remove ${name}`} sx={destructiveActionSx}
             disabled={names.length <= 2 || hasInvalidDraft} onClick={() => setRemoving(name)}><DeleteOutlineOutlinedIcon fontSize="inherit" /></IconButton></span></Tooltip>
         </Stack>
       </Box>)}
-      <Tooltip title="Add region"><span style={{ alignSelf: 'flex-start' }}><IconButton size="small" aria-label="Add region"
+      <Tooltip title="Add region"><span style={{ alignSelf: 'flex-start' }}><IconButton size="small" aria-label="Add region" sx={localActionSx}
         disabled={hasInvalidDraft} onClick={() => {
           const name = uniqueName(layout.parts, 'region');
           const last = names[names.length - 1];

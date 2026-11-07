@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './probeInteraction.test';
 import { writeFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 import { buildTargetExpression, buildBarcodeExpression, buildFixedSequence, buildProbeReferenceExpression, compileProtocol, normalizeProbes, parseTemplate, buildTemplate, reorderPart, renameProbe, removePart, removeProbe, renameTargetRegion, inferLength, validateProbes, collectAttributes, rebalanceLayout, updateNode, createPart, segmentForm, buildSegment } from '../src/utils/probeBuilder';

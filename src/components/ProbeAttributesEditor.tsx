@@ -1,8 +1,22 @@
 import { useState } from 'react';
 import { Box, Button, IconButton, MenuItem, Stack, TextField, FormControlLabel, Switch, Tooltip, Typography } from '@mui/material';
+import { alpha, Theme } from '@mui/material/styles';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { attributeType } from '../utils/probeConfig';
+
+const destructiveActionSx = {
+  minWidth: 40,
+  minHeight: 40,
+  borderRadius: 1,
+  color: 'error.main',
+  '&:hover': { color: 'error.main', bgcolor: (theme: Theme) => alpha(theme.palette.error.main, 0.1) },
+  '&.Mui-focusVisible': {
+    color: 'error.main', bgcolor: (theme: Theme) => alpha(theme.palette.error.main, 0.1),
+    outline: '2px solid', outlineColor: 'error.main', outlineOffset: 2,
+  },
+  '&.Mui-disabled': { color: 'action.disabled' },
+};
 
 const choices: Record<string, string> = { length: 'Length', gc_content: 'GC content', fold_score: 'Fold score', tm: 'Melting temperature', self_match: 'Self match', mapped_genes: 'Mapped genes', kmer_count: 'K-mer count', mapped_sites: 'Mapped sites' };
 const defaults: Record<string, any> = { gc_content: { min: 40, max: 60 }, tm: { min: 60, max: 75 }, fold_score: { max: 40 }, self_match: { max: 4 }, mapped_genes: { max: 5, aligner: 'bowtie2', min_mapq: 30 }, mapped_sites: { aligner: 'bowtie2', min_mapq: 30 }, kmer_count: { kmer_len: 35, aligner: 'jellyfish', threads: 10, size: '1G' } };
@@ -25,7 +39,7 @@ export default function ProbeAttributesEditor({ value = {}, onChange, dna }: { v
               size="small"
               aria-label={`Remove ${label}`}
               onClick={() => update(name, { enabled: false })}
-              sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+              sx={destructiveActionSx}
             >
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>

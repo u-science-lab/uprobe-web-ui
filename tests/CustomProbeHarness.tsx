@@ -9,10 +9,11 @@ import CustomProbe from '../src/pages/CustomProbe';
 import DesignWorkflow from '../src/pages/DesignWorkflow';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
 
-const fixtureKey = 'canonical-builder-verification-v2';
+const fixtureKey = 'canonical-builder-verification-v3';
 const fixture = {
   metadata: { name: 'Nested fixture' },
-  extracts: { target_region: { source: 'exon', length: 40, step: 1 } },
+  extracts: { target_region: { source: 'exon', length: 40, step: 1, layout: { template: '{left}{right}', parts: { left: { length: 20 }, right: { length: 20 } } } } },
+  attributes: { left_gc: { target: 'target_parts.left', type: 'gc_content' } },
   barcodes: { count: 1, barcodes: { BC1: { length: 12 } } },
   probes: {
     circle: { template: '{binding}AA{block}{binding}', parts: {
@@ -23,7 +24,11 @@ const fixture = {
   },
 };
 const groups = () => JSON.parse(localStorage.getItem(fixtureKey) || 'null') || [{ id: 'nested-fixture', name: 'Nested fixture', type: 'custom', probes: [{ id: 'stale-ui-array' }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), barcodeCount: 1, targetLength: 40, yamlContent: yaml.dump(fixture) }];
-ApiService.getCustomProbes = async () => groups();
+let failNextRefresh = false;
+ApiService.getCustomProbes = async () => {
+  if (failNextRefresh) { failNextRefresh = false; throw new Error('Fixture saved-list refresh unavailable'); }
+  return groups();
+};
 ApiService.saveCustomProbe = async group => { const previous = groups().filter((item: any) => item.id !== group.id); localStorage.setItem(fixtureKey, JSON.stringify([...previous, group])); return group; };
 ApiService.deleteCustomProbe = async id => { localStorage.setItem(fixtureKey, JSON.stringify(groups().filter((item: any) => item.id !== id))); };
 ApiService.getSpeciesOptions = async () => ['GRCm39'];
@@ -36,6 +41,6 @@ function Receipt() {
 }
 function SavedReceipt() {
   const [value, setValue] = useState('');
-  return <><Button onClick={() => setValue(JSON.stringify(groups(), null, 2))}>Inspect saved test data</Button>{value && <pre data-testid="saved-test-data">{value}</pre>}</>;
+  return <><Button onClick={() => setValue(JSON.stringify(groups(), null, 2))}>Inspect saved test data</Button><Button onClick={() => { failNextRefresh = true; }}>Fail next saved-list refresh</Button>{value && <pre data-testid="saved-test-data">{value}</pre>}</>;
 }
 createRoot(document.getElementById('root')!).render(<ThemeProvider><CssBaseline /><BrowserRouter><Stack direction="row" spacing={2} sx={{ p: 2 }}><Link to="/design/customprobe">Builder</Link><Link to="/design/designworkflow">Workflow</Link><SavedReceipt /></Stack><Routes><Route path="/design/designworkflow" element={<DesignWorkflow />} /><Route path="/task" element={<Receipt />} /><Route path="*" element={<CustomProbe />} /></Routes></BrowserRouter></ThemeProvider>);

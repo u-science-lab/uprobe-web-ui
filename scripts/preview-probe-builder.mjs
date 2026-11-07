@@ -1,5 +1,20 @@
-import { createServer } from 'vite';
+import { build, createServer, preview } from 'vite';
 import react from '@vitejs/plugin-react';
+import { copyFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+// A bundled fixture avoids thousands of development-module requests over SSH.
+if (process.argv.includes('--bundle')) {
+  const outDir = mkdtempSync(join(tmpdir(), 'uprobe-builder-preview-'));
+  await build({
+    configFile: false, plugins: [react()],
+    build: { outDir, rollupOptions: { input: resolve('tests/probe-builder.html') } },
+  });
+  copyFileSync(join(outDir, 'tests/probe-builder.html'), join(outDir, 'index.html'));
+  await preview({ configFile: false, build: { outDir }, preview: { host: '127.0.0.1', port: 18009, strictPort: true } });
+  console.log('Bundled isolated Custom Probe verification ready on port 18009.');
+} else {
 const server = await createServer({
   configFile: false,
   plugins: [react(), { name: 'builder-verification-entry', configureServer(server) {
@@ -12,3 +27,4 @@ const server = await createServer({
 });
 await server.listen();
 console.log('Isolated Custom Probe verification ready on port 18009.');
+}

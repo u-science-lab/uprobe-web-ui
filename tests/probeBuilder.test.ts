@@ -7,6 +7,7 @@ import { restoreTemplate } from '../src/utils/probeConfig';
 import { validateTargetLayout } from '../src/utils/targetLayout';
 import type { ProbesConfig } from '../src/types';
 import { compileWorkflowMethod } from '../src/utils/probeBuilder';
+import { exampleTarget, previewSequence } from '../src/utils/probePreview';
 
 const target = { source: 'exon', length: 40, step: 1, attributes: {} };
 const barcodes = { count: 1, barcodes: { BC1: { length: 12 } } };
@@ -21,6 +22,16 @@ const cases: ProbesConfig[] = [
 ];
 let checks = 0;
 const check = (name: string, test: () => void) => { test(); checks++; console.log(`PASS ${name}`); };
+check('legacy example previews never mutate or enter the protocol', () => {
+  const probes = { p: { template: '{binding}{fixed}', parts: { binding: { expr: 'rc(target_region[0:4])' }, fixed: { expr: "'AA'" } } } };
+  const before = structuredClone(probes);
+  assert.equal(previewSequence(probes.p, probes, target, barcodes, 'AACCGGTT'), 'GGTTAA');
+  assert.equal(exampleTarget(50, 1).length, 50);
+  assert.notEqual(exampleTarget(50, 1), exampleTarget(50, 2));
+  assert.equal(previewSequence({ expr: 'custom_function(target_region)' }, probes, target, barcodes, 'AACCGGTT'), undefined);
+  assert.deepEqual(probes, before);
+  assert.equal(compileProtocol({}, probes, target, barcodes, { name: 'Preview' }).extracts.target_region.sequence, undefined);
+});
 check('custom and workflow compile the same method and preserve extensions', () => {
   const seed = { extracts: { extra: { source: 'exon', length: 8 } }, reports: { custom: true }, post_process: { custom_stage: { enabled: true } } };
   const metadata = { name: 'Shared method' };

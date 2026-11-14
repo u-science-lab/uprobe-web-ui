@@ -1,7 +1,7 @@
-import { Fragment, ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, ButtonBase, Chip, Collapse, Dialog, DialogActions,
-  DialogContent, DialogTitle, Divider, IconButton, Menu, MenuItem, Stack,
+  Alert, Box, Button, Chip, Collapse, Dialog, DialogActions,
+  DialogContent, DialogTitle, Divider, IconButton, MenuItem, Stack,
   TextField, Tooltip, Typography, ListSubheader,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -11,7 +11,13 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import HistoryIcon from '@mui/icons-material/History';
+import TuneIcon from '@mui/icons-material/Tune';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SettingsIcon from '@mui/icons-material/Settings';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import ProbeAttributesEditor from './ProbeAttributesEditor';
+import { previewSequence } from '../utils/probePreview';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import type { ProbeConfig, ProbesConfig } from '../types';
@@ -39,12 +45,16 @@ interface Props {
   target: TargetConfig;
   barcodes: BarcodeConfig;
   onBarcodes: (barcodes: BarcodeConfig) => void;
+  heading?: ReactNode;
+  information?: ReactNode;
+  previewTarget?: string;
+  onHistory?: () => void;
   onRename: (before: string, after: string) => void;
   onPendingChange?: (pending: boolean) => void;
   onSelectionChange?: (path: string[] | null) => void;
 }
 
-export default function ProbeStructureEditor({ probes, onChange, target, barcodes, onBarcodes, onRename, onPendingChange, onSelectionChange }: Props) {
+export default function ProbeStructureEditor({ probes, onChange, target, barcodes, onBarcodes, onRename, heading, information, previewTarget = '', onHistory, onPendingChange, onSelectionChange }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [renaming, setRenaming] = useState<{ path: string[]; name: string } | null>(null);
@@ -52,7 +62,8 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
   const [error, setError] = useState('');
   const [pendingAction, setPendingAction] = useState<SegmentAction | null>(null);
   const [danger, setDanger] = useState<{ title: string; description: string; action?: Extract<SegmentAction, { kind: 'delete' }>; continuation?: SegmentAction; replacement?: boolean } | null>(null);
-  const [more, setMore] = useState<{ anchor: HTMLElement; path: string[] } | null>(null);
+  const [attributePath, setAttributePath] = useState<string[] | null>(null);
+  const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [advanced, setAdvanced] = useState(false);
   const [probeExpanded, setProbeExpanded] = useState<Record<string, boolean>>({});
   const dirty = !!editing && (!editing.original || !same(editing.form, editing.initialForm));
@@ -125,7 +136,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
   };
   const select = (parentPath: string[], index?: number, directName?: string) => guarded({ kind: 'select', parentPath, index, nodePath: directName ? [...parentPath, directName] : undefined });
   const selectionMatches = (parentPath: string[], index?: number, name?: string) => !!editing && same(editing.parentPath, parentPath) && (name ? editing.nodePath?.join('.') === [...parentPath, name].join('.') : editing.index === index && !editing.nodePath);
-  const namedSelected = (path: string[], index: number, name?: string) => !!editing && same(editing.parentPath, path) && editing.index === index && (name ? editing.nodePath?.join('.') === [...path, name].join('.') : !editing.nodePath);
+
 
   const apply = (replaceComposite = false, continuation?: SegmentAction): boolean => {
     if (!editing) { if (continuation) return run(() => execute(continuation, probes)); return true; }
@@ -161,66 +172,51 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
     let tokens: TemplateSegment[];
     try { tokens = parseTemplate(node.template || ''); }
     catch { return <Alert severity="warning">The saved structure is preserved, but its placeholders cannot be edited here.</Alert>; }
-    return <Box>
-      <Box role="group" aria-label={`${path.join(' / ')} sequence, 5 prime to 3 prime`} sx={{ overflowX: 'auto', pb: 1, scrollbarWidth: 'thin' }}>
-        <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{ py: 2, px: 0.5 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0, pr: 1.5 }}>5′</Typography>
-          {tokens.map((token, index) => {
-            const part = token.name !== undefined ? node.parts?.[token.name] : { expr: `'${token.literal}'`, length: token.literal.length };
-            const partForm = part ? segmentForm(part) : undefined;
-            const kind = partForm?.kind || 'custom';
-            const color = colors[kind];
-            const selected = namedSelected(path, index, token.name);
-            const name = token.name || token.literal;
-            return <Fragment key={`${index}:${token.name || 'literal'}`}>
-
-              <Box sx={{ flexShrink: 0, width: kind === 'composite' ? 176 : 154, border: '1px solid', borderColor: selected ? 'primary.main' : alpha(color, 0.5), borderRadius: 1.5, bgcolor: alpha(color, selected ? 0.17 : 0.09), boxShadow: selected ? theme => `0 0 0 1px ${theme.palette.primary.main}` : 'none', '& .segment-actions': { opacity: selected ? 1 : 0.3 }, '&:hover .segment-actions, &:focus-within .segment-actions': { opacity: 1 }, '@media (hover: none)': { '& .segment-actions': { opacity: 1 } } }}>
-                <Tooltip title={`${name} · ${part ? segmentLabel(part) : 'Missing segment'}`}><ButtonBase aria-label={`Select segment ${name}`} aria-pressed={selected} onClick={() => select(path, index)} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', px: 1.5, pt: 1.5, pb: 0.75, textAlign: 'left', borderRadius: '6px 6px 0 0', '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
-                  <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: '100%' }}>{name}</Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: '100%' }}>{part ? segmentLabel(part) : 'Missing segment'}</Typography>
-                  <Typography variant="caption" color="text.secondary">{part ? lengthLabel(part) : '—'}</Typography>
-                </ButtonBase></Tooltip>
-                {kind === 'target' && <Tooltip title={partForm?.reverse ? 'Antiparallel target binding (reverse complement)' : 'Target sequence in the same orientation'}><Box sx={{ px: 1.5, pb: 0.75, color: 'text.secondary' }}>
-                  <Tooltip title={`Target: ${partForm?.region || 'Whole target'}`}><Typography variant="caption" noWrap sx={{ display: 'block', maxWidth: '100%', fontSize: 10 }}>Target: {partForm?.region || 'Whole target'}</Typography></Tooltip>
-                  <svg viewBox="0 0 130 34" width="100%" height="34" role="img" aria-label={partForm?.reverse ? 'Probe 5 prime to 3 prime, target 3 prime to 5 prime' : 'Probe and target 5 prime to 3 prime'}>
-                    <g fill="currentColor" fontSize="8" fontFamily="inherit"><text x="0" y="10">5′</text><text x="119" y="10">3′</text><text x="0" y="30">{partForm?.reverse ? '3′' : '5′'}</text><text x="119" y="30">{partForm?.reverse ? '5′' : '3′'}</text></g>
-                    <g fill="none" stroke="currentColor" strokeWidth="1.1"><path d="M15 7H113l-4-3m4 3-4 3" /><path d={partForm?.reverse ? 'M113 27H15l4-3m-4 3 4 3' : 'M15 27H113l-4-3m4 3-4 3'} />{[32,46,60,74,88,102].map(x => <path key={x} d={`M${x} 12v10`} opacity="0.45" strokeDasharray={partForm?.reverse ? undefined : '2 2'} />)}</g>
-                  </svg>
-                </Box></Tooltip>}
-                <Stack className="segment-actions" direction="row" justifyContent="center" sx={{ borderTop: '1px solid', borderColor: alpha(color, 0.16), transition: 'opacity 120ms' }}>
-                  {icon(`Move ${name} left`, <ArrowBackOutlinedIcon sx={{ fontSize: 16 }} />, () => move(path, index, -1), index === 0)}
-                  {icon(`Move ${name} right`, <ArrowForwardOutlinedIcon sx={{ fontSize: 16 }} />, () => move(path, index, 1), index === tokens.length - 1)}
-                  {part?.template !== undefined && token.name && icon(`${expanded[[...path, token.name].join('.')] ? 'Collapse' : 'Expand'} ${name}`, <ExpandMoreIcon sx={{ fontSize: 18, transform: expanded[[...path, token.name].join('.')] ? 'rotate(180deg)' : undefined }} />, () => setExpanded(previous => ({ ...previous, [[...path, token.name!].join('.')]: !previous[[...path, token.name!].join('.')] })))}
-                  {icon(`Delete ${name}`, <DeleteOutlineIcon sx={{ fontSize: 17 }} />, () => askDelete({ kind: 'delete', parentPath: path, index, nodePath: token.name ? [...path, token.name] : undefined }), false, true)}
-                </Stack>
-              </Box>
-            </Fragment>;
-          })}
-          {!tokens.length && <Typography variant="body2" color="text.secondary" sx={{ px: 2 }}>Add your first segment</Typography>}
-          <Box aria-hidden sx={{ width: 24, flexShrink: 0, height: 2, bgcolor: 'divider' }} />
-          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0, pr: 1 }}>3′</Typography>
-          {icon(`Add segment to ${path.join(' / ')}`, <AddOutlinedIcon fontSize="small" />, () => select(path))}
-        </Stack>
+    const locked = !!completed[path[0]];
+    const preview = previewSequence(node, probes, target, barcodes, previewTarget);
+    return <Stack spacing={2} sx={{ p: { xs: 2, sm: 3 } }}>
+      <Box>
+        <Typography variant="subtitle2" gutterBottom>Sequence:</Typography>
+        <Box sx={{ p: 2, minHeight: 54, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', borderRadius: 1, fontFamily: 'monospace', letterSpacing: '0.06em', overflowWrap: 'anywhere' }}>
+          {!tokens.length ? 'No parts added yet' : preview === undefined ? 'Sequence preview unavailable for this saved expression. Its configuration is preserved.' : preview.slice(0, 3000)}
+        </Box>
+        <Typography variant="caption" color="text.secondary">{lengthLabel(node)} · 5′ → 3′ · Example preview</Typography>
       </Box>
-      {Object.entries(node.parts || {}).filter(([, part]) => part.template !== undefined).map(([name, part]) => {
-        const fullPath = [...path, name], key = fullPath.join('.');
-        return <Collapse key={name} in={!!expanded[key]}><Box sx={{ ml: { xs: 1, sm: 3 }, pl: 2, borderLeft: '2px solid', borderColor: alpha(colors.composite, 0.4), my: 1 }}>
-          <Stack direction="row" alignItems="center" gap={0.75}><AccountTreeOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Tooltip title={fullPath.join(' / ')}><Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '70%' }}>{fullPath.join(' / ')}</Typography></Tooltip>{icon(`Collapse ${name}`, <ExpandMoreIcon sx={{ fontSize: 18, transform: 'rotate(180deg)' }} />, () => setExpanded(previous => ({ ...previous, [key]: false })))}</Stack>
-          {renderNode(part, fullPath)}
-        </Box></Collapse>;
+      <Stack direction="row" gap={0.75} flexWrap="wrap">{tokens.map((token, index) => {
+        const part = token.name !== undefined ? node.parts?.[token.name] : { expr: `'${token.literal}'` };
+        return <Chip key={index} size="small" label={token.name || token.literal} onClick={locked ? undefined : () => select(path, index)} sx={{ bgcolor: alpha(colors[part ? segmentForm(part).kind : 'custom'], 0.16) }} />;
+      })}</Stack>
+      {tokens.map((token, index) => {
+        const part = token.name !== undefined ? node.parts?.[token.name] : { expr: `'${token.literal}'` };
+        const name = token.name || `Part ${index + 1}`;
+        return <Box key={`${index}:${name}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={600}>Part {index + 1}: {name}</Typography><Typography variant="caption" color="text.secondary">{part ? segmentLabel(part) : 'Missing segment'} · {part ? lengthLabel(part) : ''}</Typography></Box>
+            <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{part?.expr || (part?.template !== undefined ? 'Composite segment' : '')}</Typography>
+            {!locked && <Stack direction="row" spacing={0}>
+              {icon(`Edit ${name}`, <EditOutlinedIcon />, () => select(path, index))}
+              {token.name && icon(`Attributes for ${name}`, <TuneIcon />, () => setAttributePath([...path, token.name!]))}
+              {icon(`Move ${name} left`, <ArrowBackOutlinedIcon />, () => move(path, index, -1), index === 0)}
+              {icon(`Move ${name} right`, <ArrowForwardOutlinedIcon />, () => move(path, index, 1), index === tokens.length - 1)}
+              {icon(`Delete ${name}`, <DeleteOutlineIcon />, () => askDelete({ kind: 'delete', parentPath: path, index, nodePath: token.name ? [...path, token.name] : undefined }), false, true)}
+            </Stack>}
+          </Stack>
+          {part?.template !== undefined && token.name && <>
+            <Button size="small" endIcon={<ExpandMoreIcon />} onClick={() => setExpanded(previous => ({ ...previous, [[...path, token.name!].join('.')]: !previous[[...path, token.name!].join('.')] }))}>Nested parts</Button>
+            <Collapse in={!!expanded[[...path, token.name].join('.')]}>{renderNode(part, [...path, token.name])}</Collapse>
+          </>}
+        </Box>;
       })}
-      {Object.entries(node.parts || {}).some(([name]) => !tokens.some(token => token.name === name)) && <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" sx={{ pb: 1 }}>
-        <Typography variant="caption" color="text.secondary">Supporting segments</Typography>
-        {Object.entries(node.parts || {}).filter(([name]) => !tokens.some(token => token.name === name)).map(([name]) => <Tooltip key={name} title={`${name} · supporting segment`}><Chip size="small" variant="outlined" sx={{ maxWidth: 180 }} label={name} color={selectionMatches(path, undefined, name) ? 'primary' : 'default'} onClick={() => select(path, undefined, name)} /></Tooltip>)}
-      </Stack>}
-    </Box>;
+      {Object.entries(node.parts || {}).filter(([name]) => !tokens.some(token => token.name === name)).map(([name]) => <Button key={name} variant="outlined" disabled={locked} color={selectionMatches(path, undefined, name) ? 'primary' : 'inherit'} onClick={() => select(path, undefined, name)}>Supporting part: {name}</Button>)}
+      {!locked && <Button variant="outlined" startIcon={<AddOutlinedIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => select(path)}>Add Part</Button>}
+    </Stack>;
   };
 
   const references: string[] = [];
   walkProbes(probes, (_, path) => references.push(path));
   const selectedPath = editing?.nodePath?.join(' / ') || editing?.parentPath.join(' / ');
   const inspector = <Stack spacing={2} sx={{ minWidth: 0 }}>
-    <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="subtitle1" fontWeight={600}>Selected Segment</Typography><Stack direction="row">{editing?.original && icon('Delete selected segment', <DeleteOutlineIcon fontSize="small" />, () => askDelete({ kind: 'delete', parentPath: editing.parentPath, index: editing.index, nodePath: editing.nodePath }), false, true)}{editing && icon('Close segment editor', <CloseOutlinedIcon fontSize="small" />, () => guarded({ kind: 'clear' }))}</Stack></Stack>
+    <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="subtitle1" fontWeight={600}>{editing?.original ? 'Edit Part' : 'Add Part'}</Typography><Stack direction="row">{editing?.original && icon('Delete selected segment', <DeleteOutlineIcon fontSize="small" />, () => askDelete({ kind: 'delete', parentPath: editing.parentPath, index: editing.index, nodePath: editing.nodePath }), false, true)}{editing && icon('Close segment editor', <CloseOutlinedIcon fontSize="small" />, () => guarded({ kind: 'clear' }))}</Stack></Stack>
     {!editing ? <Box sx={{ py: 4, px: 2, textAlign: 'center', color: 'text.secondary', border: '1px dashed', borderColor: 'divider', borderRadius: 1.5 }}><AccountTreeOutlinedIcon sx={{ fontSize: 28, mb: 1, opacity: 0.7 }} /><Typography variant="body2">Select a segment on the canvas to edit it.</Typography></Box> : <>
       <Stack direction="row" gap={1} alignItems="center"><Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{selectedPath}{!editing.original ? ' / New segment' : ''}</Typography>{dirty && <Chip size="small" label="Pending" variant="outlined" sx={{ height: 22 }} />}</Stack>
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
@@ -245,20 +241,32 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
 
   return <>
     <Stack spacing={2} sx={{ minWidth: 0 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="caption" color="text.secondary">{Object.keys(probes).length} {Object.keys(probes).length === 1 ? 'probe' : 'probes'} · 5′ → 3′</Typography><Button startIcon={<AddOutlinedIcon />} variant="outlined" onClick={() => guarded({ kind: 'addProbe' })}>Add Probe</Button></Stack>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2} flexWrap="wrap">
+        {heading}<Stack direction="row" spacing={1}>
+        {onHistory && <Button variant="outlined" startIcon={<HistoryIcon />} onClick={onHistory}>History</Button>}
+        <Button startIcon={<AddOutlinedIcon />} variant="contained" onClick={() => guarded({ kind: 'addProbe' })}>Add Probe</Button></Stack>
+      </Stack>
+      {information}
       {error && !editing && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {!Object.keys(probes).length && <Box sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}><Typography variant="body2">Add a probe to begin your design.</Typography></Box>}
       {Object.entries(probes).map(([name, node]) => {
         const open = probeExpanded[name] ?? true;
         let count = 0; try { count = parseTemplate(node.template || '').length; } catch { /* Preserve unsupported saved structures. */ }
-        return <Box key={name} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, px: { xs: 1.5, sm: 2.5 }, py: 1.5, minWidth: 0 }}>
-          <Stack direction="row" gap={1} alignItems="center">
+        return <Box key={name} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper' }}>
+          <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center" sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <BiotechIcon color={completed[name] ? 'success' : 'primary'} />
+            <Box sx={{ mr: 'auto', minWidth: 0, flex: { xs: '1 1 calc(100% - 40px)', sm: '1 1 auto' } }}>
+              <Typography variant="subtitle1" fontWeight={600}>{name}{completed[name] ? ' · Completed' : ''}</Typography>
+              <TextField variant="standard" size="small" placeholder="Probe name (optional)" value={/^probe_\d+$/.test(name) ? '' : name} inputProps={{ readOnly: true, 'aria-label': `Rename ${name}` }} onClick={() => guarded({ kind: 'renameProbe', nodePath: [name] })} />
+            </Box>
+            <Typography variant="caption" color="text.secondary">{count} parts</Typography>
+            {icon(`Probe attributes for ${name}`, <TuneIcon />, () => setAttributePath([name]))}
+            {icon(completed[name] ? `Reopen ${name}` : `Mark ${name} complete`, completed[name] ? <SettingsIcon /> : <CheckCircleIcon color="success" />, () => run(() => {
+              if (!completed[name] && !count) throw new Error('Add a part before marking this probe complete.');
+              setCompleted(previous => ({ ...previous, [name]: !previous[name] }));
+            }))}
             {icon(`${open ? 'Collapse' : 'Expand'} probe ${name}`, <ExpandMoreIcon sx={{ transform: open ? 'rotate(180deg)' : undefined }} />, () => setProbeExpanded(previous => ({ ...previous, [name]: !open })))}
-            <Tooltip title={name}><Typography variant="subtitle2" noWrap sx={{ minWidth: 0, maxWidth: '45%' }}>{name}</Typography></Tooltip>
-            <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>{lengthLabel(node)}</Typography>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>{count} {count === 1 ? 'segment' : 'segments'}</Typography>
-            <Box sx={{ ml: 'auto' }} />
-            <Tooltip title={`Probe actions for ${name}`}><IconButton size="small" aria-label={`Probe actions for ${name}`} onClick={event => setMore({ anchor: event.currentTarget, path: [name] })} sx={{ color: 'text.secondary', width: 40, height: 40, '&:hover': { color: 'primary.main' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}><MoreHorizIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+            {icon(`Delete probe ${name}`, <DeleteOutlineIcon />, () => askDelete({ kind: 'delete', nodePath: [name] }), false, true)}
           </Stack>
           <Collapse in={open}>{renderNode(node, [name])}</Collapse>
         </Box>;
@@ -267,10 +275,11 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
     <Dialog open={!!editing} onClose={() => guarded({ kind: 'clear' })} fullWidth maxWidth="sm" aria-label="Edit segment">
       <DialogContent sx={{ py: 3 }}>{inspector}</DialogContent>
     </Dialog>
-    <Menu open={!!more} anchorEl={more?.anchor} onClose={() => setMore(null)}>
-      <MenuItem onClick={() => { if (!more) return; const path = more.path; setMore(null); guarded({ kind: 'renameProbe', nodePath: path }); }}><EditOutlinedIcon fontSize="small" sx={{ mr: 1 }} />Rename probe</MenuItem>
-      <MenuItem onClick={() => { if (!more) return; const path = more.path; setMore(null); askDelete({ kind: 'delete', nodePath: path }); }} sx={{ color: 'error.main' }}><DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />Delete probe</MenuItem>
-    </Menu>
+    <Dialog open={!!attributePath} onClose={() => setAttributePath(null)} fullWidth maxWidth="md">
+      <DialogTitle>{attributePath?.join(' / ')} Attributes</DialogTitle>
+      <DialogContent sx={{ pt: '12px !important' }}>{attributePath && <ProbeAttributesEditor dna={target.source === 'genome'} value={getNode(probes, attributePath).attributes} onChange={attributes => onChange(updateNode(probes, attributePath, node => ({ ...node, attributes })))} />}</DialogContent>
+      <DialogActions><Button onClick={() => setAttributePath(null)}>Done</Button></DialogActions>
+    </Dialog>
     <Dialog open={!!pendingAction} onClose={() => setPendingAction(null)} maxWidth="xs" fullWidth><DialogTitle>Keep segment changes?</DialogTitle><DialogContent><Typography variant="body2">Apply your changes before continuing, or discard them.</Typography>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setPendingAction(null)}>Keep editing</Button><Button onClick={() => { const action = pendingAction; setPendingAction(null); clearSelection(); if (action) run(() => execute(action, probes)); }}>Discard & continue</Button><Button variant="contained" onClick={() => { if (pendingAction) apply(false, pendingAction); }}>Apply &amp; continue</Button></DialogActions></Dialog>
     <Dialog open={!!danger} onClose={() => setDanger(null)} maxWidth="xs" fullWidth><DialogTitle>{danger?.title}</DialogTitle><DialogContent><Typography variant="body2">{danger?.description}</Typography>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setDanger(null)}>Cancel</Button><Button color="error" onClick={() => { if (!danger) return; if (danger.replacement) apply(true, danger.continuation); else if (danger.action && run(() => deleteSequence(danger.action!))) setDanger(null); }}>Confirm</Button></DialogActions></Dialog>
     <Dialog open={!!renaming} onClose={() => setRenaming(null)} maxWidth="xs" fullWidth><DialogTitle>Rename probe</DialogTitle><DialogContent><TextField sx={{ mt: 1 }} fullWidth autoFocus label="Name" value={renaming?.name || ''} onChange={e => setRenaming(renaming && ({ ...renaming, name: e.target.value }))} />{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setRenaming(null)}>Cancel</Button><Button onClick={() => run(() => { if (!renaming) return; const next = renameProbe(probes, renaming.path, renaming.name); if (!same(next, probes)) { onRename(renaming.path.join('.'), renaming.name); onChange(next); } clearSelection(); setRenaming(null); })}>Apply</Button></DialogActions></Dialog>

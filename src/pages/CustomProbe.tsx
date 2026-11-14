@@ -10,7 +10,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import ApiService from '../api';
-import CustomTargetEditor from '../components/CustomTargetEditor';
+import LegacyTargetSequence from '../components/LegacyTargetSequence';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import SettingsIcon from '@mui/icons-material/Settings';
+import SaveIcon from '@mui/icons-material/Save';
+import { exampleTarget } from '../utils/probePreview';
 import ProbeStructureEditor from '../components/ProbeStructureEditor';
 import ProbeAttributesEditor from '../components/ProbeAttributesEditor';
 import type { ProbeConfig, ProbesConfig } from '../types';
@@ -35,9 +39,9 @@ interface BuilderDraft {
 }
 
 const fresh = (): BuilderDraft => ({
-  id: crypto.randomUUID(), name: '', description: '', createdAt: new Date().toISOString(),
+  id: crypto.randomUUID(), name: `Probe_${Math.floor(Math.random() * 10000)}`, description: '', createdAt: new Date().toISOString(),
   probes: { probe_1: createProbe() },
-  target: { source: 'exon', length: 40, step: 1, attributes: {} },
+  target: { source: 'exon', length: 50, step: 1, attributes: {} },
   barcodes: { count: 0, default_length: 12, barcodes: {} }, seed: {},
 });
 const readProtocol = (text: string) => {
@@ -47,7 +51,7 @@ const readProtocol = (text: string) => {
   }
   return value as Record<string, any>;
 };
-const panelStyle = { p: { xs: 2, sm: 2.5 }, minWidth: 0, boxShadow: 'none' };
+const panelStyle = { p: { xs: 2, sm: 3 }, minWidth: 0, boxShadow: 'none', bgcolor: 'background.default', borderRadius: 2 };
 const disclosureStyle = { '&:before': { display: 'none' }, boxShadow: 'none' };
 const localIconStyle = {
   minWidth: 40, minHeight: 40, color: 'text.secondary',
@@ -64,6 +68,9 @@ const deleteIconStyle = {
 export default function CustomProbe() {
   const navigate = useNavigate();
   const [draft, setDraft] = useDraftState<BuilderDraft>('custom.canonical.v1', fresh());
+  const [previewSeed, setPreviewSeed] = useState(1);
+  const previewLength = Array.isArray(draft.target.length) ? draft.target.length[0] : draft.target.length;
+  const targetPreview = exampleTarget(previewLength, previewSeed);
   const [history, setHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -203,49 +210,27 @@ export default function CustomProbe() {
   };
   const pendingHint = pendingSegment ? 'Apply or discard segment changes first' : '';
 
-  return <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, pb: 5 }}>
+  return <Container maxWidth={false} sx={{ py: 3, pb: 5 }}><Paper sx={{ p: { xs: 2, sm: 4 }, borderRadius: 2 }}>
     <Stack spacing={3}>
-      <Box component="section" aria-label="Method information">
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" fontWeight={600}>Custom Probe</Typography>
-          <Stack direction="row" spacing={0.5}>
-            <Tooltip title={pendingHint}><span><Button disabled={busy || pendingSegment} onClick={() => {
-              setShowHistory(true);
-              void ApiService.getCustomProbes().then(setHistory).catch(() => setMessage({ text: 'Saved methods could not refresh. Existing entries are still available.', error: true }));
-            }}>Saved methods</Button></span></Tooltip>
-            <Tooltip title={pendingHint}><span><Button disabled={busy || pendingSegment} onClick={newMethod}>New method</Button></span></Tooltip>
-          </Stack>
-        </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <TextField size="small" label="Method name" value={draft.name} disabled={busy} onChange={e => patch({ name: e.target.value })} sx={{ width: { xs: '100%', sm: 300 }, flexShrink: 0 }} />
-          <TextField size="small" fullWidth label="Description (optional)" value={draft.description} disabled={busy} onChange={e => patch({ description: e.target.value })} />
-        </Stack>
-      </Box>
+      <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ py: 1, mb: 2 }}>
+        <BiotechIcon color="primary" sx={{ fontSize: 36 }} /><Typography variant="h4" fontWeight={600}>Create Your Own Probe Type</Typography>
+      </Stack>
       {message && <Alert severity={message.error ? 'error' : 'success'} onClose={() => setMessage(null)}>{message.text}</Alert>}
 
       <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Target settings">
-        <Typography variant="h6" sx={{ mb: 2 }}>Target Configuration</Typography>
-          <CustomTargetEditor
-            key={`target-${revision}`} value={draft.target}
-            onValidity={valid => setValidity(previous => ({ ...previous, basic: valid }))}
-            onChange={changeTarget}
-            onRename={(layout, before, after) => {
-              patch({
-                target: { ...draft.target, layout },
-                probes: renameTargetReferences(draft.probes, before, after),
-                seed: renameTargetReferences(draft.seed, before, after),
-              });
-            }}
-          />
-        <Accordion disableGutters elevation={0} sx={{ ...disclosureStyle, mt: 2 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2">Target attributes &amp; sampling</Typography></AccordionSummary>
-          <AccordionDetails><CustomTargetEditor key={`advanced-${revision}`} advancedOnly value={draft.target} onChange={changeTarget}
-            onValidity={valid => setValidity(previous => ({ ...previous, advanced: valid }))} onRename={() => {}} /></AccordionDetails>
-        </Accordion>
+        <LegacyTargetSequence key={`target-${revision}`} value={draft.target} preview={targetPreview}
+          onRegenerate={() => setPreviewSeed(seed => seed + 1)} onChange={changeTarget}
+          onValidity={valid => setValidity({ basic: valid, advanced: valid })}
+          onRename={(layout, before, after) => patch({ target: { ...draft.target, layout },
+            probes: renameTargetReferences(draft.probes, before, after), seed: renameTargetReferences(draft.seed, before, after) })} />
       </Paper>
       <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Probe structure design">
-        <Typography variant="h6" sx={{ mb: 2 }}>Probe Structure Design</Typography>
-        <ProbeStructureEditor key={revision} probes={draft.probes} target={draft.target} barcodes={draft.barcodes}
+        <ProbeStructureEditor heading={<Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}><SettingsIcon color="primary" /><Typography variant="h5" fontWeight={600}>Probe Type Design</Typography></Stack>} information={<Box>        <TextField fullWidth size="small" label="Probe Group Name" value={draft.name} disabled={busy} onChange={event => patch({ name: event.target.value })} sx={{ mb: 1.5 }} />
+        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 3 }}>
+          <Button variant="contained" startIcon={<SaveIcon />} disabled={busy || pendingSegment} onClick={() => save()}>Save Probe Group</Button>
+          <Button disabled={busy || pendingSegment} onClick={newMethod}>New method</Button>
+        </Stack>
+</Box>} key={revision} probes={draft.probes} previewTarget={targetPreview} onHistory={() => { setShowHistory(true); void ApiService.getCustomProbes().then(setHistory).catch(report); }} target={draft.target} barcodes={draft.barcodes}
           onChange={probes => patch({ probes })} onBarcodes={barcodes => patch({ barcodes })}
           onRename={renameScope} onPendingChange={setPendingSegment}
           onSelectionChange={path => setSelectedSegment(path?.join('.') || null)} />
@@ -294,7 +279,7 @@ export default function CustomProbe() {
         <Tooltip title={pendingHint}><span><Button fullWidth disabled={busy || pendingSegment} onClick={() => save()}>Save method</Button></span></Tooltip>
         <Tooltip title={pendingHint}><span><Button fullWidth disabled={busy || pendingSegment} variant="contained" disableElevation onClick={() => save(true)}>Save &amp; use in workflow</Button></span></Tooltip>
       </Stack>
-    </Stack>
+    </Stack></Paper>
 
     <Dialog open={showHistory} onClose={() => setShowHistory(false)} fullWidth maxWidth="sm">
       <DialogTitle>Saved methods</DialogTitle>

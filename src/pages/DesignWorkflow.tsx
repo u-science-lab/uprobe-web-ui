@@ -70,6 +70,7 @@ import ApiService from '../api';
 import { CustomProbeType, WorkflowFilter, extractParametersFromYaml } from '../types';
 import SequenceFilters from '../components/SequenceFilters';
 import AttributeTable from '../components/AttributeTable';
+import AttributeChips from '../components/AttributeChips';
 
 import YAML from 'yaml';
 import { restoreTemplate } from '../utils/probeConfig';
@@ -174,6 +175,7 @@ const DesignWorkflow: React.FC = () => {
   const [isLoadingCustomTypes, setIsLoadingCustomTypes] = useState(true);
   const [showCustomProbeTypes, setShowCustomProbeTypes] = useState(false);
   const [expandedProbes, setExpandedProbes] = useState<Record<string, boolean>>({});
+  const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
 
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
     taskName: true,
@@ -190,7 +192,7 @@ const DesignWorkflow: React.FC = () => {
   const [currentPartName, setCurrentPartName] = useState<string>('');
   const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
   const [sortOptions, setSortOptions] = useDraftState<SortOption[]>("workflow.sortOptions", []);
-  const [showPostProcess, setShowPostProcess] = useState(true);
+  const [showPostProcess, setShowPostProcess] = useState(false);
   const [overlapThreshold, setOverlapThreshold] = useDraftState("workflow.overlapThreshold", 0);
 
   
@@ -977,7 +979,15 @@ const DesignWorkflow: React.FC = () => {
     });
   };
 
-  const renderAttributeTable = (scope: 'target' | 'probe' | 'part', attributes: Record<string, any>, probeName = '', partName = '') => <AttributeTable
+  const renderAttributeTable = (scope: 'target' | 'probe' | 'part', attributes: Record<string, any>, probeName = '', partName = '') => <Box sx={{ width: '100%', minWidth: 0 }}>
+    <AttributeChips value={attributes} onEdit={(name: string) => {
+          const value = attributes[name];
+          if (scope === 'target') { setCurrentAttributeType('target'); handleEditAttribute({ name, ...value }); }
+          else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, value);
+        }} onDelete={name => handleDeleteAttribute(scope, name, probeName, partName)} />
+    <Box component="details" sx={{ mt: 1 }}>
+      <Typography component="summary" variant="caption" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced attributes</Typography>
+<AttributeTable
     attributes={attributes}
     onChange={(name, value) => {
       if (!selectedCustomType) return;
@@ -995,7 +1005,9 @@ const DesignWorkflow: React.FC = () => {
       else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, value);
     }}
     onDelete={name => handleDeleteAttribute(scope, name, probeName, partName)}
-  />;
+  />
+    </Box>
+  </Box>;
 
   const handleAddSortOption = () => {
     setSortOptions([...sortOptions, { category: '', field: '', order: 'asc' }]);
@@ -1151,7 +1163,7 @@ const DesignWorkflow: React.FC = () => {
     const parameterErrors = errors.filter(error => !targetErrors.includes(error) && error !== 'please select species' && error !== 'please select probe structure');
     return [
       { id: 'species', label: 'Species', summary: species || 'Select a genome', completed: !!species, optional: false },
-      { id: 'probeType', label: 'Probe Structure', summary: selectedCustomType?.name || probeType || 'Select a probe structure', completed: !!probeType, optional: false },
+      { id: 'probeType', label: 'Probe Type', summary: selectedCustomType?.name || probeType || 'Select a probe structure', completed: !!probeType, optional: false },
       ...(selectedCustomType ? [{ id: 'parameters', label: 'Probe Parameters', summary: parameterErrors.length ? 'Configuration needed' : `${formatTargetLength(minLength)} bp · step ${step}`, completed: !parameterErrors.length, optional: false }] : []),
       { id: 'geneMap', label: 'Targets', summary: `${targetList.filter(target => target.target.trim()).length} targets${targetErrors.length ? ' · incomplete' : ''}`, completed: !targetErrors.length, optional: false },
       { id: 'postProcessing', label: 'Post Processing', summary: [enableBasicFilter && 'Filtering', enableAvoidOtp && 'Avoid OTP', enableEqualSpace && 'Equal spacing'].filter(Boolean).join(' · ') || 'Default', completed: true, optional: true },
@@ -1604,7 +1616,7 @@ const DesignWorkflow: React.FC = () => {
   const handleToggleProbeAccordion = (probeName: string) => {
     setExpandedProbes(prev => ({
       ...prev,
-      [probeName]: !prev[probeName],
+      [probeName]: !(prev[probeName] ?? true),
     }));
   };
 
@@ -1667,40 +1679,26 @@ const DesignWorkflow: React.FC = () => {
         display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
       }}>
 
-      <Box sx={{ display: 'flex', alignItems: 'stretch', gap: { md: 3, lg: 4 }, flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 188, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-          <Typography variant="overline" color="text.secondary" sx={{ pl: 1.5 }}>Workflow stages</Typography>
-          <Stepper nonLinear orientation="vertical" activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mt: 1,
-            '& .MuiStepConnector-line': { borderColor: 'divider', minHeight: 16 },
-            '& .MuiStepIcon-root': { fontSize: 22 },
-            '& .MuiStepButton-root': { m: 0, px: 1.5, py: 1, width: '100%', borderRadius: 1.5 },
-            '& .MuiStepConnector-root': { ml: '22px' },
-            '& .MuiStepLabel-root': { minWidth: 0, width: '100%' },
-            '& .MuiStepLabel-labelContainer': { minWidth: 0 },
-            '& .MuiStepLabel-label': { overflowWrap: 'anywhere' }
-          }}>
-            {getActiveSteps().map(step => (
-              <Step key={step.id} completed={step.completed && !step.optional}>
-                <StepButton onClick={() => jumpToSection(step.id)} aria-current={activeSection === step.id ? 'location' : undefined}
-                  sx={{ bgcolor: activeSection === step.id ? 'action.selected' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
-                  <StepLabel error={showValidation && !step.completed}>
-                    <Typography variant="body2" sx={{ fontWeight: activeSection === step.id ? 600 : 500 }}>{step.label}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 144, overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.summary}</Typography>
-                  </StepLabel>
-                </StepButton>
-              </Step>
-            ))}
-          </Stepper>
-        </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
-      <Box sx={{ mb: 3, flexShrink: 0 }}>
+      <Box textAlign="center" sx={{ mb: 3, flexShrink: 0 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', fontSize: 24 }} gutterBottom>
-          Design Probes
+          Design Workflow
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Choose a genome and probe structure, add targets, then review your filters.
+          Follow the steps below to design your probe workflow.
         </Typography>
       </Box>
+
+      <Stepper nonLinear alternativeLabel activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mb: 3, display: { xs: 'none', md: 'flex' }, '& .MuiStepLabel-label': { overflowWrap: 'anywhere' } }}>
+        {getActiveSteps().map(stage => (
+          <Step key={stage.id} completed={stage.completed && !stage.optional}>
+            <StepButton onClick={() => jumpToSection(stage.id)} aria-current={activeSection === stage.id ? 'location' : undefined}>
+              <StepLabel error={showValidation && !stage.completed}>{stage.label}</StepLabel>
+            </StepButton>
+          </Step>
+        ))}
+      </Stepper>
 
           <FormControl size="small" fullWidth sx={{ display: { xs: 'flex', md: 'none' }, mb: 2, position: 'sticky', top: 8, zIndex: 5, bgcolor: 'background.paper', borderRadius: 1 }}>
             <InputLabel id="workflow-stage-label">Workflow stage</InputLabel>
@@ -1712,7 +1710,7 @@ const DesignWorkflow: React.FC = () => {
       {/* Species Option */}
       <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="Genome" 
+          title="Species Option"
           subheader={species ? species : "Select the reference genome"}
           action={
             <IconButton onClick={() => toggleSection('species')}>
@@ -1743,7 +1741,7 @@ const DesignWorkflow: React.FC = () => {
       {/* Probe Structure */}
       <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="Probe structure" 
+          title="Probe Type"
           subheader={probeType || "Select a built-in or saved design"}
           action={
             <IconButton onClick={() => toggleSection('probeType')}>
@@ -1755,7 +1753,7 @@ const DesignWorkflow: React.FC = () => {
           <CardContent>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
               <FormControl fullWidth>
-                <InputLabel id="probe-type-label">Probe Structure</InputLabel>
+                <InputLabel id="probe-type-label">Probe Type</InputLabel>
                 <Select
                   labelId="probe-type-label"
                   value={probeType}
@@ -1797,7 +1795,7 @@ const DesignWorkflow: React.FC = () => {
                 onClick={() => setShowCustomProbeTypes(true)}
                 disabled={isLoadingCustomTypes}
               >
-                Saved structures
+                View Custom Types
               </Button>
             </Box>
 
@@ -1813,19 +1811,20 @@ const DesignWorkflow: React.FC = () => {
                   boxShadow: 'none'
                 }}>
                   <CardHeader
-                    title="Probe parameters"
-                    subheader="Sequence structure and attribute conditions"
+                    title="Custom Probe Parameters"
+                    subheader="Adjust the parameters for your custom probe design"
                   />
                   <CardContent>
                     {/* Target Sequence Configuration */}
                     <Box sx={{ mb: 3 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="subtitle1" sx={{ color: 'text.primary', fontWeight: 600 }}>
-                          Target sequence
+                          Target Sequence Configuration
                         </Typography>
                         <Tooltip title="Add target sequence attributes">
                           <IconButton
                             size="small"
+                            aria-label="Add target sequence attributes"
                             onClick={(e) => {
                               e.stopPropagation();
                               setCurrentAttributeType('target');
@@ -1858,16 +1857,19 @@ const DesignWorkflow: React.FC = () => {
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
-                            label="Candidate step"
+                            label={!Array.isArray(minLength) && step <= minLength ? 'Overlap' : 'Candidate step'}
                             type="number"
-                            value={step}
+                            value={!Array.isArray(minLength) && step <= minLength ? minLength - step : step}
+                            inputProps={!Array.isArray(minLength) && step <= minLength ? { min: 0, max: minLength - 1, step: 1 } : { min: 1, step: 1 }}
+                            error={!Number.isSafeInteger(step) || step <= 0}
+                            helperText={!Number.isSafeInteger(step) || step <= 0 ? (!Array.isArray(minLength) && step <= minLength ? 'Overlap must be an integer from 0 to target length − 1.' : 'Candidate step must be a positive integer.') : undefined}
                             onChange={(e) => {
-                              const updatedType = {
-                                ...selectedCustomType,
-                                step: Number(e.target.value)
-                              };
-                              setSelectedCustomType(updatedType);
-                              setStep(Number(e.target.value));
+                              const overlapMode = !Array.isArray(minLength) && step <= minLength;
+                              // Invalid negative overlap must not switch this control into step mode.
+                              if (overlapMode && Number(e.target.value) < 0) return;
+                              const nextStep = overlapMode ? (minLength as number) - Number(e.target.value) : Number(e.target.value);
+                              setSelectedCustomType({ ...selectedCustomType, step: nextStep });
+                              setStep(nextStep);
                             }}
                             InputProps={{
                               endAdornment: <InputAdornment position="end">bp</InputAdornment>,
@@ -1878,13 +1880,24 @@ const DesignWorkflow: React.FC = () => {
                         </Grid>
                       </Grid>
 
+                      {selectedCustomType.targetConfig?.attributes && renderAttributeTable('target', selectedCustomType.targetConfig.attributes)}
+
+                      <Box component="details" sx={{ mb: 2 }}>
+                        <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced target settings</Typography>
+                        <Box sx={{ mt: 2 }}>
+                          <TextField size="small" type="number" label="Candidate step" value={step} inputProps={{ min: 1 }} helperText="Sampling step; scalar overlap = target length − step." onChange={event => {
+                            const nextStep = Number(event.target.value);
+                            setStep(nextStep); setSelectedCustomType({ ...selectedCustomType, step: nextStep });
+                          }} sx={{ mb: 2 }} />
                       <TargetLayoutEditor value={selectedCustomType.targetConfig?.layout} length={minLength} onChange={layout => setSelectedCustomType({ ...selectedCustomType, targetConfig: { ...selectedCustomType.targetConfig!, layout } })} onRename={(layout, before, after) => {
                         const updated = rewritePartReferences(selectedCustomType, 'target_parts', before, after);
                         const seed = rewritePartReferences(YAML.parse(selectedCustomType.yamlContent), 'target_parts', before, after);
                         setSelectedCustomType({ ...updated, yamlContent: YAML.stringify(seed), targetConfig: { ...updated.targetConfig!, layout } });
                       }} />
+                        </Box>
+                      </Box>
 
-                      {selectedCustomType.targetConfig?.attributes && renderAttributeTable('target', selectedCustomType.targetConfig.attributes)}
+
 
                     </Box>
 
@@ -1892,12 +1905,11 @@ const DesignWorkflow: React.FC = () => {
                     <Box sx={{ mb: 3 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="subtitle1" sx={{ color: 'text.primary', fontWeight: 600 }}>
-                          Probe sequences
+                          Probe Configuration
                         </Typography>
                       </Box>
 
                       {(() => {
-                        console.log('Debug - Rendering probes:', selectedCustomType.probes);
                         return selectedCustomType.probes && Object.keys(selectedCustomType.probes).length > 0 ? (
                           Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
                         <Accordion 
@@ -1907,12 +1919,13 @@ const DesignWorkflow: React.FC = () => {
                           onChange={() => handleToggleProbeAccordion(probeName)}
                         >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                              <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, width: '100%', minWidth: 0 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 'medium', overflowWrap: 'anywhere', minWidth: 0 }}>
                                 {formatProbeName(probeName)}
                               </Typography>
                               <IconButton
                                 size="small"
+                                aria-label={`Add attributes to ${formatProbeName(probeName)}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setCurrentProbeName(probeName);
@@ -1933,7 +1946,6 @@ const DesignWorkflow: React.FC = () => {
                           </AccordionSummary>
                           <AccordionDetails>
                             {/* Probe-level attributes */}
-                            <Typography variant="overline" color="text.secondary">Complete probe attributes</Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
                               {probeConfig.attributes && renderAttributeTable('probe', probeConfig.attributes, probeName)}
                               {!probeConfig.attributes && (
@@ -1943,26 +1955,28 @@ const DesignWorkflow: React.FC = () => {
                               )}
                             </Box>
 
-                            <Button startIcon={<AddIcon />} size="small" onClick={() => {
-                              let n = 1; while (probeConfig.parts?.[`part${n}`]) n++;
-                              setPartEditError(''); setPartEditor({ probe: probeName, name: `part${n}`, expr: '' });
-                            }}>Add probe part</Button>
+                            <Box component="details" sx={{ mb: 2 }}>
+                              <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced probe settings</Typography>
+                              <Button startIcon={<AddIcon />} size="small" onClick={() => {
+                                let n = 1; while (probeConfig.parts?.[`part${n}`]) n++;
+                                setPartEditError(''); setPartEditor({ probe: probeName, name: `part${n}`, expr: '' });
+                              }}>Add probe part</Button>
+                            </Box>
                             {/* Part-level attributes */}
                             {probeConfig.parts && Object.entries(probeConfig.parts).map(([partName, partConfig]) => (
-                              <Box key={partName} sx={{ mb: 3 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                  <Box>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                              <Box key={partName} sx={{ mb: 2, pl: { xs: 1, sm: 2 }, borderLeft: '1px solid', borderColor: 'divider' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Button color="inherit" size="small" aria-expanded={expandedParts[`${probeName}.${partName}`] ?? true} onClick={() => setExpandedParts(previous => ({ ...previous, [`${probeName}.${partName}`]: !(previous[`${probeName}.${partName}`] ?? true) }))} endIcon={(expandedParts[`${probeName}.${partName}`] ?? true) ? <ExpandLessIcon /> : <ExpandMoreIcon />} sx={{ p: 0, justifyContent: 'flex-start' }}>
                                       {formatPartName(partName)}
-                                    </Typography>
-                                    {partConfig.expr !== undefined && <Button size="small" onClick={() => { setPartEditError(''); setPartEditor({ probe: probeName, before: partName, name: partName, expr: partConfig.expr! }); }}>Edit part</Button>}
-                                    <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{partConfig.expr}</Typography>
-                                    <Typography variant="caption" color="text.secondary">
+                                    </Button>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                       Part of {formatProbeName(probeName)}
                                     </Typography>
                                   </Box>
                                   <IconButton
                                     size="small"
+                                    aria-label={`Add attributes to ${formatPartName(partName)}`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setCurrentProbeName(probeName);
@@ -1981,12 +1995,14 @@ const DesignWorkflow: React.FC = () => {
                                     <AddIcon fontSize="small" />
                                   </IconButton>
                                 </Box>
-                                {partConfig.attributes && (
-                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {renderAttributeTable('part', partConfig.attributes, probeName, partName)}
-
-                                  </Box>
-                                )}
+                                <Collapse in={expandedParts[`${probeName}.${partName}`] ?? true}>
+                                  {partConfig.attributes && renderAttributeTable('part', partConfig.attributes, probeName, partName)}
+                                  {partConfig.expr !== undefined && <Box component="details" sx={{ mt: 1 }}>
+                                    <Typography component="summary" variant="caption" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Part settings</Typography>
+                                    <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{partConfig.expr}</Typography>
+                                    <Button size="small" onClick={() => { setPartEditError(''); setPartEditor({ probe: probeName, before: partName, name: partName, expr: partConfig.expr! }); }}>Edit part</Button>
+                                  </Box>}
+                                </Collapse>
                               </Box>
                             ))}
                           </AccordionDetails>
@@ -2481,7 +2497,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Submit button and progress bar */}
-      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 -4px 18px rgba(15,23,42,0.04)' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 -4px 18px rgba(15,23,42,0.04)' }}>
         <Box>
           <Typography variant="body2" fontWeight={600}>{probeType || 'Select a probe structure'} · {targetList.filter(item => item.target.trim()).length} targets</Typography>
           <Typography variant="caption" color="text.secondary">{species ? species : 'Select a genome'} · Review your configuration before submitting</Typography>

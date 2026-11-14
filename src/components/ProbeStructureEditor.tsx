@@ -12,11 +12,11 @@ import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HistoryIcon from '@mui/icons-material/History';
-import TuneIcon from '@mui/icons-material/Tune';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BiotechIcon from '@mui/icons-material/Biotech';
 import ProbeAttributesEditor from './ProbeAttributesEditor';
+import AttributeChips from './AttributeChips';
 import { previewSequence } from '../utils/probePreview';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
@@ -174,9 +174,9 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
     catch { return <Alert severity="warning">The saved structure is preserved, but its placeholders cannot be edited here.</Alert>; }
     const locked = !!completed[path[0]];
     const preview = previewSequence(node, probes, target, barcodes, previewTarget);
-    return <Stack spacing={2} sx={{ p: { xs: 2, sm: 3 } }}>
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>Sequence:</Typography>
+    return <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <Box component="details">
+        <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Preview · {lengthLabel(node)}</Typography>
         <Box sx={{ p: 2, minHeight: 54, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', borderRadius: 1, fontFamily: 'monospace', letterSpacing: '0.06em', overflowWrap: 'anywhere' }}>
           {!tokens.length ? 'No parts added yet' : preview === undefined ? 'Sequence preview unavailable for this saved expression. Its configuration is preserved.' : preview.slice(0, 3000)}
         </Box>
@@ -189,18 +189,19 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
       {tokens.map((token, index) => {
         const part = token.name !== undefined ? node.parts?.[token.name] : { expr: `'${token.literal}'` };
         const name = token.name || `Part ${index + 1}`;
-        return <Box key={`${index}:${name}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+        return <Box key={`${index}:${name}`} sx={{ borderLeft: '2px solid', borderColor: 'divider', pl: { xs: 1, sm: 2 }, py: 0.5, minWidth: 0 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
             <Box sx={{ flex: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={600}>Part {index + 1}: {name}</Typography><Typography variant="caption" color="text.secondary">{part ? segmentLabel(part) : 'Missing segment'} · {part ? lengthLabel(part) : ''}</Typography></Box>
             <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{part?.expr || (part?.template !== undefined ? 'Composite segment' : '')}</Typography>
             {!locked && <Stack direction="row" spacing={0}>
               {icon(`Edit ${name}`, <EditOutlinedIcon />, () => select(path, index))}
-              {token.name && icon(`Attributes for ${name}`, <TuneIcon />, () => setAttributePath([...path, token.name!]))}
+              {token.name && icon(`Attributes for ${name}`, <AddOutlinedIcon />, () => setAttributePath([...path, token.name!]))}
               {icon(`Move ${name} left`, <ArrowBackOutlinedIcon />, () => move(path, index, -1), index === 0)}
               {icon(`Move ${name} right`, <ArrowForwardOutlinedIcon />, () => move(path, index, 1), index === tokens.length - 1)}
               {icon(`Delete ${name}`, <DeleteOutlineIcon />, () => askDelete({ kind: 'delete', parentPath: path, index, nodePath: token.name ? [...path, token.name] : undefined }), false, true)}
             </Stack>}
           </Stack>
+          {part && token.name && <AttributeChips value={part.attributes} onEdit={() => setAttributePath([...path, token.name!])} />}
           {part?.template !== undefined && token.name && <>
             <Button size="small" endIcon={<ExpandMoreIcon />} onClick={() => setExpanded(previous => ({ ...previous, [[...path, token.name!].join('.')]: !previous[[...path, token.name!].join('.')] }))}>Nested parts</Button>
             <Collapse in={!!expanded[[...path, token.name].join('.')]}>{renderNode(part, [...path, token.name])}</Collapse>
@@ -260,7 +261,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
               <TextField variant="standard" size="small" placeholder="Probe name (optional)" value={/^probe_\d+$/.test(name) ? '' : name} inputProps={{ readOnly: true, 'aria-label': `Rename ${name}` }} onClick={() => guarded({ kind: 'renameProbe', nodePath: [name] })} />
             </Box>
             <Typography variant="caption" color="text.secondary">{count} parts</Typography>
-            {icon(`Probe attributes for ${name}`, <TuneIcon />, () => setAttributePath([name]))}
+            {icon(`Probe attributes for ${name}`, <AddOutlinedIcon />, () => setAttributePath([name]))}
             {icon(completed[name] ? `Reopen ${name}` : `Mark ${name} complete`, completed[name] ? <SettingsIcon /> : <CheckCircleIcon color="success" />, () => run(() => {
               if (!completed[name] && !count) throw new Error('Add a part before marking this probe complete.');
               setCompleted(previous => ({ ...previous, [name]: !previous[name] }));
@@ -268,6 +269,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
             {icon(`${open ? 'Collapse' : 'Expand'} probe ${name}`, <ExpandMoreIcon sx={{ transform: open ? 'rotate(180deg)' : undefined }} />, () => setProbeExpanded(previous => ({ ...previous, [name]: !open })))}
             {icon(`Delete probe ${name}`, <DeleteOutlineIcon />, () => askDelete({ kind: 'delete', nodePath: [name] }), false, true)}
           </Stack>
+          <Box sx={{ px: 2, pt: 1 }}><AttributeChips value={node.attributes} onEdit={() => setAttributePath([name])} /></Box>
           <Collapse in={open}>{renderNode(node, [name])}</Collapse>
         </Box>;
       })}

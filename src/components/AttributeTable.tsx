@@ -12,7 +12,7 @@ export default function AttributeTable({ attributes, onChange, onEdit, onDelete 
   if (!entries.length) return <Typography variant="body2" color="text.secondary">No attributes configured.</Typography>;
   const columns = 'minmax(140px,1fr) 68px minmax(220px,1.4fr) 76px';
   return <Box sx={{ width: '100%', overflowX: 'auto' }}><Box sx={{ minWidth: 560 }}>
-    <Box sx={{ display: 'grid', gridTemplateColumns: columns, gap: 1, px: 1, py: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: columns, gap: 1, px: 1, py: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
       {['Attribute', 'Calculate', 'Filter condition', ''].map((label, index) => <Typography key={index} variant="caption" color="text.secondary">{label}</Typography>)}
     </Box>
     {entries.map(([name, value]) => {

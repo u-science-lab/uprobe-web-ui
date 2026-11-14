@@ -69,7 +69,6 @@ import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, WorkflowFilter, extractParametersFromYaml } from '../types';
 import SequenceFilters from '../components/SequenceFilters';
-import AttributeTable from '../components/AttributeTable';
 import AttributeChips from '../components/AttributeChips';
 
 import YAML from 'yaml';
@@ -192,7 +191,7 @@ const DesignWorkflow: React.FC = () => {
   const [currentPartName, setCurrentPartName] = useState<string>('');
   const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
   const [sortOptions, setSortOptions] = useDraftState<SortOption[]>("workflow.sortOptions", []);
-  const [showPostProcess, setShowPostProcess] = useState(false);
+  const [showPostProcess, setShowPostProcess] = useState(true);
   const [overlapThreshold, setOverlapThreshold] = useDraftState("workflow.overlapThreshold", 0);
 
   
@@ -867,12 +866,9 @@ const DesignWorkflow: React.FC = () => {
   // Add new function to handle attribute editing
   const handleEditAttribute = (attribute: Partial<AttributeValue>) => {
     const updatedAttribute: AttributeValue = {
+      ...attribute,
       name: attribute.name || '',
-      min: attribute.min || 0,
-      max: attribute.max || 100,
-      threshold: attribute.threshold,
-      aligner: attribute.aligner as 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish' | undefined,
-      enabled: true
+      enabled: attribute.enabled !== false
     };
     setEditingAttribute(updatedAttribute);
     setShowEditAttributeDialog(true);
@@ -897,7 +893,7 @@ const DesignWorkflow: React.FC = () => {
       }
       updatedType.targetConfig.attributes[editingAttribute.name] = {
         ...editingAttribute,
-        enabled: true
+        enabled: editingAttribute.enabled !== false
       };
     } else if (currentAttributeType === 'probe') {
       if (!updatedType.probes?.[currentProbeName]?.attributes) {
@@ -910,7 +906,7 @@ const DesignWorkflow: React.FC = () => {
       }
       updatedType.probes[currentProbeName].attributes![editingAttribute.name] = {
         ...editingAttribute,
-        enabled: true
+        enabled: editingAttribute.enabled !== false
       };
     } else if (currentAttributeType === 'part') {
       if (!updatedType.probes?.[currentProbeName]?.parts?.[currentPartName]?.attributes) {
@@ -930,7 +926,7 @@ const DesignWorkflow: React.FC = () => {
       }
       updatedType.probes[currentProbeName].parts[currentPartName].attributes![editingAttribute.name] = {
         ...editingAttribute,
-        enabled: true
+        enabled: editingAttribute.enabled !== false
       };
     }
 
@@ -979,35 +975,14 @@ const DesignWorkflow: React.FC = () => {
     });
   };
 
-  const renderAttributeTable = (scope: 'target' | 'probe' | 'part', attributes: Record<string, any>, probeName = '', partName = '') => <Box sx={{ width: '100%', minWidth: 0 }}>
-    <AttributeChips value={attributes} onEdit={(name: string) => {
-          const value = attributes[name];
-          if (scope === 'target') { setCurrentAttributeType('target'); handleEditAttribute({ name, ...value }); }
-          else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, value);
-        }} onDelete={name => handleDeleteAttribute(scope, name, probeName, partName)} />
-    <Box component="details" sx={{ mt: 1 }}>
-      <Typography component="summary" variant="caption" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced attributes</Typography>
-<AttributeTable
-    attributes={attributes}
-    onChange={(name, value) => {
-      if (!selectedCustomType) return;
-      if (scope === 'target') {
-        setSelectedCustomType({ ...selectedCustomType, targetConfig: { ...selectedCustomType.targetConfig!, attributes: { ...attributes, [name]: value } } });
-      } else {
-        const probe = selectedCustomType.probes![probeName];
-        const updated = scope === 'probe' ? { ...probe, attributes: { ...attributes, [name]: value } } :
-          { ...probe, parts: { ...probe.parts, [partName]: { ...probe.parts![partName], attributes: { ...attributes, [name]: value } } } };
-        setSelectedCustomType({ ...selectedCustomType, probes: { ...selectedCustomType.probes, [probeName]: updated } });
-      }
-    }}
-    onEdit={(name, value) => {
-      if (scope === 'target') { setCurrentAttributeType('target'); handleEditAttribute({ name, ...value }); }
-      else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, value);
+  const renderAttributeChips = (scope: 'target' | 'probe' | 'part', attributes: Record<string, any>, probeName = '', partName = '') => <AttributeChips
+    value={attributes}
+    onEdit={name => {
+      if (scope === 'target') { setCurrentAttributeType('target'); handleEditAttribute({ name, ...attributes[name] }); }
+      else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, attributes[name]);
     }}
     onDelete={name => handleDeleteAttribute(scope, name, probeName, partName)}
-  />
-    </Box>
-  </Box>;
+  />;
 
   const handleAddSortOption = () => {
     setSortOptions([...sortOptions, { category: '', field: '', order: 'asc' }]);
@@ -1679,7 +1654,31 @@ const DesignWorkflow: React.FC = () => {
         display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
       }}>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'stretch', gap: { md: 3, lg: 4 }, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 188, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+          <Typography variant="overline" color="text.secondary" sx={{ pl: 1.5 }}>Workflow stages</Typography>
+          <Stepper nonLinear orientation="vertical" activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mt: 1,
+            '& .MuiStepConnector-line': { borderColor: 'divider', minHeight: 16 },
+            '& .MuiStepIcon-root': { fontSize: 22 },
+            '& .MuiStepButton-root': { m: 0, px: 1.5, py: 1, width: '100%', borderRadius: 1.5 },
+            '& .MuiStepConnector-root': { ml: '22px' },
+            '& .MuiStepLabel-root': { minWidth: 0, width: '100%' },
+            '& .MuiStepLabel-labelContainer': { minWidth: 0 },
+            '& .MuiStepLabel-label': { overflowWrap: 'anywhere' }
+          }}>
+            {getActiveSteps().map(step => (
+              <Step key={step.id} completed={step.completed && !step.optional}>
+                <StepButton onClick={() => jumpToSection(step.id)} aria-current={activeSection === step.id ? 'location' : undefined}
+                  sx={{ bgcolor: activeSection === step.id ? 'action.selected' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <StepLabel error={showValidation && !step.completed}>
+                    <Typography variant="body2" sx={{ fontWeight: activeSection === step.id ? 600 : 500 }}>{step.label}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 144, overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.summary}</Typography>
+                  </StepLabel>
+                </StepButton>
+              </Step>
+            ))}
+          </Stepper>
+        </Box>
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
       <Box textAlign="center" sx={{ mb: 3, flexShrink: 0 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', fontSize: 24 }} gutterBottom>
@@ -1689,16 +1688,6 @@ const DesignWorkflow: React.FC = () => {
           Follow the steps below to design your probe workflow.
         </Typography>
       </Box>
-
-      <Stepper nonLinear alternativeLabel activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mb: 3, display: { xs: 'none', md: 'flex' }, '& .MuiStepLabel-label': { overflowWrap: 'anywhere' } }}>
-        {getActiveSteps().map(stage => (
-          <Step key={stage.id} completed={stage.completed && !stage.optional}>
-            <StepButton onClick={() => jumpToSection(stage.id)} aria-current={activeSection === stage.id ? 'location' : undefined}>
-              <StepLabel error={showValidation && !stage.completed}>{stage.label}</StepLabel>
-            </StepButton>
-          </Step>
-        ))}
-      </Stepper>
 
           <FormControl size="small" fullWidth sx={{ display: { xs: 'flex', md: 'none' }, mb: 2, position: 'sticky', top: 8, zIndex: 5, bgcolor: 'background.paper', borderRadius: 1 }}>
             <InputLabel id="workflow-stage-label">Workflow stage</InputLabel>
@@ -1880,7 +1869,7 @@ const DesignWorkflow: React.FC = () => {
                         </Grid>
                       </Grid>
 
-                      {selectedCustomType.targetConfig?.attributes && renderAttributeTable('target', selectedCustomType.targetConfig.attributes)}
+                      {selectedCustomType.targetConfig?.attributes && renderAttributeChips('target', selectedCustomType.targetConfig.attributes)}
 
                       <Box component="details" sx={{ mb: 2 }}>
                         <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced target settings</Typography>
@@ -1947,7 +1936,7 @@ const DesignWorkflow: React.FC = () => {
                           <AccordionDetails>
                             {/* Probe-level attributes */}
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
-                              {probeConfig.attributes && renderAttributeTable('probe', probeConfig.attributes, probeName)}
+                              {probeConfig.attributes && renderAttributeChips('probe', probeConfig.attributes, probeName)}
                               {!probeConfig.attributes && (
                                 <Typography variant="caption" color="text.secondary">
                                   No attributes configured
@@ -1996,7 +1985,7 @@ const DesignWorkflow: React.FC = () => {
                                   </IconButton>
                                 </Box>
                                 <Collapse in={expandedParts[`${probeName}.${partName}`] ?? true}>
-                                  {partConfig.attributes && renderAttributeTable('part', partConfig.attributes, probeName, partName)}
+                                  {partConfig.attributes && renderAttributeChips('part', partConfig.attributes, probeName, partName)}
                                   {partConfig.expr !== undefined && <Box component="details" sx={{ mt: 1 }}>
                                     <Typography component="summary" variant="caption" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Part settings</Typography>
                                     <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{partConfig.expr}</Typography>
@@ -2214,20 +2203,232 @@ const DesignWorkflow: React.FC = () => {
         <Collapse in={showPostProcess}>
           <CardContent>
             <Stack spacing={3}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 1, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                {[
-                  { label: 'Basic Filtering', checked: enableBasicFilter, change: setEnableBasicFilter },
-                  { label: 'Sorting', checked: enableSorting, change: setEnableSorting },
-                  { label: 'Remove Overlap', checked: enableRemoveOverlap, change: setEnableRemoveOverlap },
-                  ...(shouldEnableDnaFeatures() ? [
-                    { label: 'Avoid Off-Target', checked: enableAvoidOtp, change: (value: boolean) => { setEnableAvoidOtp(value); if (value) initializeAvoidOtpConfig(); } },
-                    { label: 'Equal Spacing', checked: enableEqualSpace, change: (value: boolean) => { setEnableEqualSpace(value); if (value) initializeEqualSpaceConfig(); } },
-                  ] : [])
-                ].map(option => <Box key={option.label} sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: option.checked ? 'background.paper' : 'transparent', boxShadow: option.checked ? '0 1px 4px rgba(15,23,42,0.08)' : 'none' }}>
-                  <FormControlLabel sx={{ m: 0, gap: 1 }} label={<Typography variant="body2" fontWeight={option.checked ? 600 : 400} color={option.checked ? 'text.primary' : 'text.secondary'}>{option.label}</Typography>} labelPlacement="start"
-                    control={<Switch size="small" checked={option.checked} onChange={event => option.change(event.target.checked)} />} />
-                </Box>)}
-              </Box>
+              {/* Processing Options Grid */}
+              <Grid container spacing={2}>
+                {/* Basic Filtering */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper
+                    elevation={enableBasicFilter ? 2 : 0}
+                    sx={{
+                      p: 2,
+                      height: '100%',
+                      border: enableBasicFilter ? '2px solid' : '1px solid',
+                      borderColor: enableBasicFilter ? 'primary.main' : 'divider',
+                      backgroundColor: enableBasicFilter ? 'action.selected' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableBasicFilter}
+                          onChange={(e) => setEnableBasicFilter(e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🔍 Basic Filtering
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Apply attribute-based filters
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Avoid Off-Target Priming */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper
+                    elevation={enableAvoidOtp ? 2 : 0}
+                    sx={{
+                      p: 2,
+                      height: '100%',
+                      border: enableAvoidOtp ? '2px solid' : '1px solid',
+                      borderColor: enableAvoidOtp ? 'warning.main' : 'divider',
+                      backgroundColor: enableAvoidOtp ? 'action.selected' : !shouldEnableDnaFeatures() ? 'action.disabledBackground' : 'background.paper',
+                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableAvoidOtp}
+                          onChange={(e) => {
+                            setEnableAvoidOtp(e.target.checked);
+                            if (e.target.checked) {
+                              initializeAvoidOtpConfig();
+                            }
+                          }}
+                          color="warning"
+                          disabled={!shouldEnableDnaFeatures()}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
+                            ⚠️ Avoid Off-Target
+                          </Typography>
+                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
+                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Prevent off-target binding'}
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Equal Spacing */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper
+                    elevation={enableEqualSpace ? 2 : 0}
+                    sx={{
+                      p: 2,
+                      height: '100%',
+                      border: enableEqualSpace ? '2px solid' : '1px solid',
+                      borderColor: enableEqualSpace ? 'secondary.main' : 'divider',
+                      backgroundColor: enableEqualSpace ? 'action.selected' : !shouldEnableDnaFeatures() ? 'action.disabledBackground' : 'background.paper',
+                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableEqualSpace}
+                          onChange={(e) => {
+                            setEnableEqualSpace(e.target.checked);
+                            if (e.target.checked) {
+                              initializeEqualSpaceConfig();
+                            }
+                          }}
+                          color="secondary"
+                          disabled={!shouldEnableDnaFeatures()}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
+                            📏 Equal Spacing
+                          </Typography>
+                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
+                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Distribute probes evenly'}
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Remove Overlap */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper
+                    elevation={enableRemoveOverlap ? 2 : 0}
+                    sx={{
+                      p: 2,
+                      height: '100%',
+                      border: enableRemoveOverlap ? '2px solid' : '1px solid',
+                      borderColor: enableRemoveOverlap ? 'error.main' : 'divider',
+                      backgroundColor: enableRemoveOverlap ? 'action.selected' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableRemoveOverlap}
+                          onChange={(e) => setEnableRemoveOverlap(e.target.checked)}
+                          color="error"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🚫 Remove Overlap
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Eliminate overlapping probes
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Sorting Options */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper
+                    elevation={enableSorting ? 2 : 0}
+                    sx={{
+                      p: 2,
+                      height: '100%',
+                      border: enableSorting ? '2px solid' : '1px solid',
+                      borderColor: enableSorting ? 'info.main' : 'divider',
+                      backgroundColor: enableSorting ? 'action.selected' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableSorting}
+                          onChange={(e) => setEnableSorting(e.target.checked)}
+                          color="info"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🔄 Sorting Options
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Sort by attributes
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+              </Grid>
 
               {/* Basic filtering: sequence patterns */}
               {enableBasicFilter && selectedCustomType && <SequenceFilters
@@ -2685,6 +2886,10 @@ const DesignWorkflow: React.FC = () => {
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
+                <FormControlLabel label="Calculate" control={<Switch
+                  checked={editingAttribute?.enabled !== false}
+                  onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, enabled: checked } : null)}
+                />} />
                 <FormControlLabel label="Enable filtering" control={<Switch
                   checked={editingAttribute?.filterEnabled !== false}
                   onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, filterEnabled: checked } : null)}
@@ -2700,7 +2905,7 @@ const DesignWorkflow: React.FC = () => {
                   } : null)}
                 />
               </Grid>
-              {(editingAttribute?.name === 'length' || editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm' || editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
+              {editingAttribute && (
                 <>
                   <Grid item xs={12} sm={6}>
                     <TextField

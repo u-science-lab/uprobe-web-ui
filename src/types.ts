@@ -97,13 +97,14 @@ export interface GenomeFile {
 }
 
 export interface ProbeConfig {
-  template: string;
-  parts: Record<string, {
-    expr: string;
-    attributes?: Record<string, any>;
-  }>;
+  template?: string;
+  expr?: string;
+  parts?: Record<string, ProbeConfig>;
+  length?: number;
   attributes?: Record<string, any>;
 }
+
+export type ProbesConfig = Record<string, ProbeConfig>;
 
 export interface WorkflowFilter {
   condition?: string;

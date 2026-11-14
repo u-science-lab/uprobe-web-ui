@@ -1847,7 +1847,7 @@ const DesignWorkflow: React.FC = () => {
                       </Box>
                       
                       <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid item xs={12} sm={6}>
+                        <Grid item xs={12} sm="auto" sx={{ minWidth: 0, maxWidth: '100%' }}>
                           <TargetLengthEditor value={lengthInput} onChange={text => {
                             setLengthInput(text);
                             try {
@@ -1857,7 +1857,7 @@ const DesignWorkflow: React.FC = () => {
                             } catch { /* Keep incomplete text editable. */ }
                           }} />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid item xs={12} sm="auto" sx={{ width: { sm: 200 } }}>
                           <TextField
                             fullWidth
                             label={!Array.isArray(minLength) && step <= minLength ? 'Overlap' : 'Candidate step'}

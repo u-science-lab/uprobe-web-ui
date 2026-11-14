@@ -71,13 +71,14 @@ import SequenceFilters from '../components/SequenceFilters';
 import AttributeChips from '../components/AttributeChips';
 
 import YAML from 'yaml';
-import { restoreTemplate } from '../utils/probeConfig';
+import { attributeType, restoreTemplate } from '../utils/probeConfig';
 import { compileWorkflowMethod } from '../utils/probeBuilder';
 import { useDraftState } from '../utils/useDraftState';
-import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
+import { AttributeFilter, parseAttributeFilter } from '../utils/attributeFilters';
 
 
 interface AttributeValue extends AttributeFilter {
+  originalType?: string;
   name: string;
   min?: number;
   max?: number;
@@ -189,6 +190,7 @@ const DesignWorkflow: React.FC = () => {
   const [currentProbeName, setCurrentProbeName] = useState<string>('');
   const [currentPartName, setCurrentPartName] = useState<string>('');
   const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
+  const [editingSavedFilter, setEditingSavedFilter] = useState(false);
   const [sortOptions, setSortOptions] = useDraftState<SortOption[]>("workflow.sortOptions", []);
   const [showPostProcess, setShowPostProcess] = useState(true);
   const [overlapThreshold, setOverlapThreshold] = useDraftState("workflow.overlapThreshold", 0);
@@ -870,6 +872,7 @@ const DesignWorkflow: React.FC = () => {
       enabled: attribute.enabled !== false
     };
     setEditingAttribute(updatedAttribute);
+    setEditingSavedFilter(attribute.filterExpression !== undefined && attribute.min === undefined && attribute.max === undefined);
     setShowEditAttributeDialog(true);
   };
 
@@ -954,6 +957,7 @@ const DesignWorkflow: React.FC = () => {
       enabled: true
     } as AttributeValue);
     setShowAttributeDialog(false);
+    setEditingSavedFilter(false);
     setShowEditAttributeDialog(true);
   };
 
@@ -1265,6 +1269,17 @@ const DesignWorkflow: React.FC = () => {
     const part = /^\d+$/.test(currentPartName) ? `part${parseInt(currentPartName) + 1}` : currentPartName;
     return `${probe}_${part}_${attribute}`;
   };
+
+  const editingAttributeType = editingAttribute?.originalType || attributeType(editingAttribute?.name || '');
+  const attributeLabels: Record<string, string> = { gc_content: 'GC Content', annealing_temperature: 'Melting Temperature', tm: 'Melting Temperature', fold_score: 'Fold Score', self_match: 'Self Match', mapped_genes: 'Mapped Genes', mapped_sites: 'Mapped Sites', kmer_count: 'K-mer Count', length: 'Length' };
+  const primaryBounds: ('min' | 'max')[] = editingSavedFilter ? [] : ['gc_content', 'annealing_temperature', 'tm'].includes(editingAttributeType) ? ['min', 'max'] : ['fold_score', 'self_match', 'mapped_genes'].includes(editingAttributeType) ? ['max'] : [];
+  const renderAttributeBound = (bound: 'min' | 'max') => <TextField fullWidth label={bound === 'min' ? 'Min' : 'Max'} type="number"
+    value={editingAttribute?.[bound] ?? ''} disabled={editingAttribute?.enabled === false || editingAttribute?.filterEnabled === false}
+    onChange={event => setEditingAttribute(previous => {
+      if (!previous) return null;
+      const value = event.target.value === '' ? undefined : Number(event.target.value);
+      return value === previous[bound] ? previous : { ...previous, [bound]: value, filterExpression: undefined };
+    })} />;
 
   // Helper function to generate automatic task name
   const generateAutoTaskName = () => {
@@ -2860,103 +2875,55 @@ const DesignWorkflow: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1" sx={{ mb: 2 }}>
-              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content') && '🧬 GC Content'}
-              {editingAttribute?.name && !['gcContent', 'gc_content', 'kmerCount', 'kmer_count', 'mappedSites', 'mapped_sites'].includes(editingAttribute.name) && editingAttribute.name}
-              {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && '🔢 K-mer Count'}
-              {(editingAttribute?.name === 'mappedSites' || editingAttribute?.name === 'mapped_sites') && '📍 Mapped Sites'}
-            </Typography>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>{attributeLabels[editingAttributeType] || editingAttribute?.name}</Typography>
             <Grid container spacing={2}>
+              {primaryBounds.map(bound => <Grid item xs={12} sm={primaryBounds.length === 2 ? 6 : 12} key={bound}>{renderAttributeBound(bound)}</Grid>)}
+              {editingAttributeType === 'kmer_count' && <Grid item xs={12}>
+                <TextField fullWidth label="K-mer Length" type="number" value={editingAttribute?.kmer_len ?? ''}
+                  onChange={event => setEditingAttribute(previous => previous ? { ...previous, kmer_len: event.target.value === '' ? undefined : Number(event.target.value) } : null)} />
+              </Grid>}
+              {['mapped_genes', 'mapped_sites', 'kmer_count'].includes(editingAttributeType) && <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel id="attribute-aligner-label">Aligner</InputLabel>
+                  <Select labelId="attribute-aligner-label" label="Aligner" value={editingAttribute?.aligner || ''}
+                    onChange={event => setEditingAttribute(previous => previous ? { ...previous, aligner: event.target.value as AttributeValue['aligner'] } : null)}>
+                    {editingAttribute?.aligner && editingAttribute.aligner !== (editingAttributeType === 'kmer_count' ? 'jellyfish' : 'bowtie2') && <MenuItem value={editingAttribute.aligner}>{({ blast: 'BLAST', mmseqs2: 'MMseqs2', bowtie2: 'Bowtie2', jellyfish: 'Jellyfish' } as Record<string, string>)[editingAttribute.aligner] || editingAttribute.aligner}</MenuItem>}
+                    {editingAttributeType === 'kmer_count' ? <MenuItem value="jellyfish">Jellyfish</MenuItem> : <MenuItem value="bowtie2">Bowtie2</MenuItem>}
+                  </Select>
+                </FormControl>
+              </Grid>}
               <Grid item xs={12}>
-                <FormControlLabel label="Calculate" control={<Switch
-                  checked={editingAttribute?.enabled !== false}
-                  onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, enabled: checked } : null)}
-                />} />
-                <FormControlLabel label="Enable filtering" control={<Switch
-                  checked={editingAttribute?.filterEnabled !== false}
-                  onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, filterEnabled: checked } : null)}
-                />} />
-                <TextField fullWidth multiline margin="dense" label="Filter expression (advanced)"
-                  disabled={editingAttribute?.filterEnabled === false}
-                  value={editingAttribute ? buildAttributeFilter({ ...editingAttribute, filterEnabled: true }, getEditingFilterName(), ['gcContent', 'gc_content'].includes(editingAttribute.name)) : ''}
-                  helperText="Conditions are preserved as written. GC values here use 0–1; the bounds below use percent."
-                  onChange={event => setEditingAttribute(prev => prev ? {
-                    ...prev, min: undefined, max: undefined,
-                    ...parseAttributeFilter(getEditingFilterName(), ['gcContent', 'gc_content'].includes(prev.name) ? 'gc_content' : '', event.target.value),
-                    filterEnabled: true
-                  } : null)}
-                />
-              </Grid>
-              {editingAttribute && (
-                <>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Min"
-                      type="number"
-                      value={editingAttribute?.min ?? ''}
-                      disabled={editingAttribute?.filterEnabled === false}
-                      onChange={(e) => setEditingAttribute(prev => prev ? {
-                        ...prev,
-                        min: e.target.value === '' ? undefined : Number(e.target.value), filterExpression: undefined
-                      } : null)}
-                    />
-                    <FormControlLabel label="Include minimum" control={<Switch
-                      checked={editingAttribute?.minInclusive !== false}
-                      onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, minInclusive: checked, filterExpression: undefined } : null)}
-                    />} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Max"
-                      type="number"
-                      value={editingAttribute?.max ?? ''}
-                      disabled={editingAttribute?.filterEnabled === false}
-                      onChange={(e) => setEditingAttribute(prev => prev ? {
-                        ...prev,
-                        max: e.target.value === '' ? undefined : Number(e.target.value), filterExpression: undefined
-                      } : null)}
-                    />
-                    <FormControlLabel label="Include maximum" control={<Switch
-                      checked={editingAttribute?.maxInclusive !== false}
-                      onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, maxInclusive: checked, filterExpression: undefined } : null)}
-                    />} />
-                  </Grid>
-                </>
-              )}
-              {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && (
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="K-mer Length"
-                    type="number"
-                    value={editingAttribute?.kmer_len}
-                    onChange={(e) => setEditingAttribute(prev => prev ? {
-                      ...prev,
-                      kmer_len: Number(e.target.value)
-                    } : null)}
-                  />
-                </Grid>
-              )}
-              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes' || 
-                editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count' || 
-                editingAttribute?.name === 'mappedSites' || editingAttribute?.name === 'mapped_sites') && (
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Aligner</InputLabel>
-                    <Select
-                      value={editingAttribute?.aligner || 'BLAST'}
-                      onChange={(e) =>                       setEditingAttribute(prev => prev ? {
-                        ...prev,
-                        aligner: e.target.value as 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish'
-                      } : null)}
-                    >
-                      {['kmerCount','kmer_count'].includes(editingAttribute.name) ? <MenuItem value="jellyfish">Jellyfish</MenuItem> : <MenuItem value="bowtie2">Bowtie2</MenuItem>}
+                <Box component="details">
+                  <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Options</Typography>
+                  <FormControl fullWidth size="small" sx={{ mt: 2, mb: 2 }}>
+                    <InputLabel id="attribute-mode-label">Mode</InputLabel>
+                    <Select labelId="attribute-mode-label" label="Mode" value={editingAttribute?.enabled === false ? 'disabled' : editingAttribute?.filterEnabled === false ? 'calculate' : 'filter'}
+                      onChange={event => setEditingAttribute(previous => previous ? { ...previous, enabled: event.target.value !== 'disabled', filterEnabled: event.target.value === 'disabled' ? previous.filterEnabled : event.target.value === 'filter' } : null)}>
+                      <MenuItem value="filter">Calculate and filter</MenuItem>
+                      <MenuItem value="calculate">Calculate only</MenuItem>
+                      <MenuItem value="disabled">Disabled</MenuItem>
                     </Select>
                   </FormControl>
-                </Grid>
-              )}
+                  {!editingSavedFilter && <Grid container spacing={2}>
+                    {(['min', 'max'] as const).filter(bound => !primaryBounds.includes(bound)).map(bound => <Grid item xs={12} sm={6} key={bound}>{renderAttributeBound(bound)}</Grid>)}
+                    <Grid item xs={12}>
+                      <FormControlLabel label="Include minimum" control={<Switch size="small" checked={editingAttribute?.minInclusive !== false}
+                        onChange={(_, checked) => setEditingAttribute(previous => previous ? { ...previous, minInclusive: checked, filterExpression: undefined } : null)} />} />
+                      <FormControlLabel label="Include maximum" control={<Switch size="small" checked={editingAttribute?.maxInclusive !== false}
+                        onChange={(_, checked) => setEditingAttribute(previous => previous ? { ...previous, maxInclusive: checked, filterExpression: undefined } : null)} />} />
+                    </Grid>
+                  </Grid>}
+                </Box>
+              </Grid>
+              {editingSavedFilter && <Grid item xs={12}>
+                <Box component="details">
+                  <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Saved filter</Typography>
+                  <TextField fullWidth multiline margin="normal" label="Filter expression" value={editingAttribute?.filterExpression ?? ''}
+                    disabled={editingAttribute?.enabled === false || editingAttribute?.filterEnabled === false}
+                    onChange={event => setEditingAttribute(previous => previous ? { ...previous, min: undefined, max: undefined,
+                      ...parseAttributeFilter(getEditingFilterName(), editingAttributeType, event.target.value) } : null)} />
+                </Box>
+              </Grid>}
             </Grid>
           </Box>
         </DialogContent>

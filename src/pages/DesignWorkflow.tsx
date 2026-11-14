@@ -1,5 +1,4 @@
 import { clearEncodingValues, encodingCsvValue } from '../utils/encodingFields';
-import TargetLayoutEditor from '../components/TargetLayoutEditor';
 import TargetLengthEditor from '../components/TargetLengthEditor';
 import { editProbePart, rewritePartReferences } from '../utils/structureEditing';
 import { validateTargetLayout } from '../utils/targetLayout';
@@ -1870,23 +1869,6 @@ const DesignWorkflow: React.FC = () => {
                       </Grid>
 
                       {selectedCustomType.targetConfig?.attributes && renderAttributeChips('target', selectedCustomType.targetConfig.attributes)}
-
-                      <Box component="details" sx={{ mb: 2 }}>
-                        <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary' }}>Advanced target settings</Typography>
-                        <Box sx={{ mt: 2 }}>
-                          <TextField size="small" type="number" label="Candidate step" value={step} inputProps={{ min: 1 }} helperText="Sampling step; scalar overlap = target length − step." onChange={event => {
-                            const nextStep = Number(event.target.value);
-                            setStep(nextStep); setSelectedCustomType({ ...selectedCustomType, step: nextStep });
-                          }} sx={{ mb: 2 }} />
-                      <TargetLayoutEditor value={selectedCustomType.targetConfig?.layout} length={minLength} onChange={layout => setSelectedCustomType({ ...selectedCustomType, targetConfig: { ...selectedCustomType.targetConfig!, layout } })} onRename={(layout, before, after) => {
-                        const updated = rewritePartReferences(selectedCustomType, 'target_parts', before, after);
-                        const seed = rewritePartReferences(YAML.parse(selectedCustomType.yamlContent), 'target_parts', before, after);
-                        setSelectedCustomType({ ...updated, yamlContent: YAML.stringify(seed), targetConfig: { ...updated.targetConfig!, layout } });
-                      }} />
-                        </Box>
-                      </Box>
-
-
 
                     </Box>
 

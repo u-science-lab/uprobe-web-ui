@@ -1,5 +1,4 @@
 import { Fragment, ReactNode, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Alert, Box, Button, ButtonBase, Chip, Collapse, Dialog, DialogActions,
   DialogContent, DialogTitle, Divider, IconButton, Menu, MenuItem, Stack,
@@ -41,12 +40,11 @@ interface Props {
   barcodes: BarcodeConfig;
   onBarcodes: (barcodes: BarcodeConfig) => void;
   onRename: (before: string, after: string) => void;
-  inspectorContainer?: HTMLElement | null;
   onPendingChange?: (pending: boolean) => void;
   onSelectionChange?: (path: string[] | null) => void;
 }
 
-export default function ProbeStructureEditor({ probes, onChange, target, barcodes, onBarcodes, onRename, inspectorContainer, onPendingChange, onSelectionChange }: Props) {
+export default function ProbeStructureEditor({ probes, onChange, target, barcodes, onBarcodes, onRename, onPendingChange, onSelectionChange }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [renaming, setRenaming] = useState<{ path: string[]; name: string } | null>(null);
@@ -56,7 +54,6 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
   const [danger, setDanger] = useState<{ title: string; description: string; action?: Extract<SegmentAction, { kind: 'delete' }>; continuation?: SegmentAction; replacement?: boolean } | null>(null);
   const [more, setMore] = useState<{ anchor: HTMLElement; path: string[] } | null>(null);
   const [advanced, setAdvanced] = useState(false);
-  const [activeProbe, setActiveProbe] = useState(Object.keys(probes)[0] || '');
   const [probeExpanded, setProbeExpanded] = useState<Record<string, boolean>>({});
   const dirty = !!editing && (!editing.original || !same(editing.form, editing.initialForm));
   const form = editing?.form;
@@ -105,15 +102,14 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
     if (action.kind === 'clear') { clearSelection(); return; }
     if (action.kind === 'select') {
       const next = makeSelection(source, action.parentPath, action.index, action.nodePath?.[action.nodePath.length - 1]);
-      setEditing(next); setAdvanced(false); setActiveProbe(action.parentPath[0]);
+      setEditing(next); setAdvanced(false);
       onSelectionChange?.(next.original ? next.nodePath || next.parentPath : null);
       if (next.original?.template !== undefined && next.nodePath) setExpanded(previous => ({ ...previous, [next.nodePath!.join('.')]: true }));
-      inspectorContainer?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       return;
     }
     if (action.kind === 'addProbe') {
       const name = uniqueName(source, 'probe_');
-      onChange({ ...source, [name]: createProbe() }); setActiveProbe(name); clearSelection(); return;
+      onChange({ ...source, [name]: createProbe() }); clearSelection(); return;
     }
     if (action.kind === 'move') {
       const next = updateNode(source, action.parentPath, node => reorderPart(node, action.index, action.offset));
@@ -146,6 +142,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
       if (result.editing.form.kind === 'composite' && result.editing.nodePath) setExpanded(previous => ({ ...previous, [result.editing.nodePath!.join('.')]: true }));
       setDanger(null);
       if (continuation) execute(remapSegmentAction(continuation, result.renamed), result.probes);
+      else clearSelection();
       setPendingAction(null);
     });
   };
@@ -166,7 +163,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
     catch { return <Alert severity="warning">The saved structure is preserved, but its placeholders cannot be edited here.</Alert>; }
     return <Box>
       <Box role="group" aria-label={`${path.join(' / ')} sequence, 5 prime to 3 prime`} sx={{ overflowX: 'auto', pb: 1, scrollbarWidth: 'thin' }}>
-        <Stack direction="row" alignItems="center" sx={{ width: 'max-content', minWidth: '100%', py: 2, px: 0.5 }}>
+        <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{ py: 2, px: 0.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0, pr: 1.5 }}>5′</Typography>
           {tokens.map((token, index) => {
             const part = token.name !== undefined ? node.parts?.[token.name] : { expr: `'${token.literal}'`, length: token.literal.length };
@@ -176,7 +173,7 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
             const selected = namedSelected(path, index, token.name);
             const name = token.name || token.literal;
             return <Fragment key={`${index}:${token.name || 'literal'}`}>
-              {index > 0 && <Box aria-hidden sx={{ width: 24, flexShrink: 0, height: 2, bgcolor: 'divider' }} />}
+
               <Box sx={{ flexShrink: 0, width: kind === 'composite' ? 176 : 154, border: '1px solid', borderColor: selected ? 'primary.main' : alpha(color, 0.5), borderRadius: 1.5, bgcolor: alpha(color, selected ? 0.17 : 0.09), boxShadow: selected ? theme => `0 0 0 1px ${theme.palette.primary.main}` : 'none', '& .segment-actions': { opacity: selected ? 1 : 0.3 }, '&:hover .segment-actions, &:focus-within .segment-actions': { opacity: 1 }, '@media (hover: none)': { '& .segment-actions': { opacity: 1 } } }}>
                 <Tooltip title={`${name} · ${part ? segmentLabel(part) : 'Missing segment'}`}><ButtonBase aria-label={`Select segment ${name}`} aria-pressed={selected} onClick={() => select(path, index)} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', px: 1.5, pt: 1.5, pb: 0.75, textAlign: 'left', borderRadius: '6px 6px 0 0', '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
                   <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: '100%' }}>{name}</Typography>
@@ -248,12 +245,11 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
 
   return <>
     <Stack spacing={2} sx={{ minWidth: 0 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="caption" color="text.secondary">{Object.keys(probes).length} {Object.keys(probes).length === 1 ? 'probe' : 'probes'} · 5′ → 3′</Typography>{icon('Add probe', <AddOutlinedIcon fontSize="small" />, () => guarded({ kind: 'addProbe' }))}</Stack>
+      <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography variant="caption" color="text.secondary">{Object.keys(probes).length} {Object.keys(probes).length === 1 ? 'probe' : 'probes'} · 5′ → 3′</Typography><Button startIcon={<AddOutlinedIcon />} variant="outlined" onClick={() => guarded({ kind: 'addProbe' })}>Add Probe</Button></Stack>
       {error && !editing && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {!Object.keys(probes).length && <Box sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}><Typography variant="body2">Add a probe to begin your design.</Typography></Box>}
       {Object.entries(probes).map(([name, node]) => {
-        const candidate = editing?.parentPath[0] || activeProbe;
-        const open = probeExpanded[name] ?? name === (probes[candidate] ? candidate : Object.keys(probes)[0]);
+        const open = probeExpanded[name] ?? true;
         let count = 0; try { count = parseTemplate(node.template || '').length; } catch { /* Preserve unsupported saved structures. */ }
         return <Box key={name} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, px: { xs: 1.5, sm: 2.5 }, py: 1.5, minWidth: 0 }}>
           <Stack direction="row" gap={1} alignItems="center">
@@ -268,14 +264,16 @@ export default function ProbeStructureEditor({ probes, onChange, target, barcode
         </Box>;
       })}
     </Stack>
-    {inspectorContainer ? createPortal(inspector, inspectorContainer) : <Box sx={{ mt: 3, p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>{inspector}</Box>}
+    <Dialog open={!!editing} onClose={() => guarded({ kind: 'clear' })} fullWidth maxWidth="sm" aria-label="Edit segment">
+      <DialogContent sx={{ py: 3 }}>{inspector}</DialogContent>
+    </Dialog>
     <Menu open={!!more} anchorEl={more?.anchor} onClose={() => setMore(null)}>
       <MenuItem onClick={() => { if (!more) return; const path = more.path; setMore(null); guarded({ kind: 'renameProbe', nodePath: path }); }}><EditOutlinedIcon fontSize="small" sx={{ mr: 1 }} />Rename probe</MenuItem>
       <MenuItem onClick={() => { if (!more) return; const path = more.path; setMore(null); askDelete({ kind: 'delete', nodePath: path }); }} sx={{ color: 'error.main' }}><DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />Delete probe</MenuItem>
     </Menu>
     <Dialog open={!!pendingAction} onClose={() => setPendingAction(null)} maxWidth="xs" fullWidth><DialogTitle>Keep segment changes?</DialogTitle><DialogContent><Typography variant="body2">Apply your changes before continuing, or discard them.</Typography>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setPendingAction(null)}>Keep editing</Button><Button onClick={() => { const action = pendingAction; setPendingAction(null); clearSelection(); if (action) run(() => execute(action, probes)); }}>Discard & continue</Button><Button variant="contained" onClick={() => { if (pendingAction) apply(false, pendingAction); }}>Apply &amp; continue</Button></DialogActions></Dialog>
     <Dialog open={!!danger} onClose={() => setDanger(null)} maxWidth="xs" fullWidth><DialogTitle>{danger?.title}</DialogTitle><DialogContent><Typography variant="body2">{danger?.description}</Typography>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setDanger(null)}>Cancel</Button><Button color="error" onClick={() => { if (!danger) return; if (danger.replacement) apply(true, danger.continuation); else if (danger.action && run(() => deleteSequence(danger.action!))) setDanger(null); }}>Confirm</Button></DialogActions></Dialog>
-    <Dialog open={!!renaming} onClose={() => setRenaming(null)} maxWidth="xs" fullWidth><DialogTitle>Rename probe</DialogTitle><DialogContent><TextField sx={{ mt: 1 }} fullWidth autoFocus label="Name" value={renaming?.name || ''} onChange={e => setRenaming(renaming && ({ ...renaming, name: e.target.value }))} />{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setRenaming(null)}>Cancel</Button><Button onClick={() => run(() => { if (!renaming) return; const next = renameProbe(probes, renaming.path, renaming.name); if (!same(next, probes)) { onRename(renaming.path.join('.'), renaming.name); onChange(next); } setActiveProbe(renaming.name); clearSelection(); setRenaming(null); })}>Apply</Button></DialogActions></Dialog>
+    <Dialog open={!!renaming} onClose={() => setRenaming(null)} maxWidth="xs" fullWidth><DialogTitle>Rename probe</DialogTitle><DialogContent><TextField sx={{ mt: 1 }} fullWidth autoFocus label="Name" value={renaming?.name || ''} onChange={e => setRenaming(renaming && ({ ...renaming, name: e.target.value }))} />{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setRenaming(null)}>Cancel</Button><Button onClick={() => run(() => { if (!renaming) return; const next = renameProbe(probes, renaming.path, renaming.name); if (!same(next, probes)) { onRename(renaming.path.join('.'), renaming.name); onChange(next); } clearSelection(); setRenaming(null); })}>Apply</Button></DialogActions></Dialog>
     <Dialog open={!!newBarcode} onClose={() => setNewBarcode(null)} maxWidth="xs" fullWidth><DialogTitle>Define barcode</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}><TextField label="Name" value={newBarcode?.name || ''} onChange={e => setNewBarcode(newBarcode && ({ ...newBarcode, name: e.target.value }))} /><TextField label="Length (nt)" type="number" value={newBarcode?.length ?? ''} onChange={e => setNewBarcode(newBarcode && ({ ...newBarcode, length: Number(e.target.value) }))} inputProps={{ min: 1 }} /></Stack>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}</DialogContent><DialogActions><Button onClick={() => setNewBarcode(null)}>Cancel</Button><Button onClick={() => run(() => { if (!newBarcode || !/^[A-Za-z_]\w*$/.test(newBarcode.name) || barcodes.barcodes[newBarcode.name] || !Number.isSafeInteger(newBarcode.length) || newBarcode.length <= 0) throw new Error('Enter a unique name and a positive length.'); const entries = { ...barcodes.barcodes, [newBarcode.name]: { length: newBarcode.length } }; onBarcodes({ ...barcodes, barcodes: entries, count: Object.keys(entries).length }); patch({ barcode: newBarcode.name }); setNewBarcode(null); })}>Add barcode</Button></DialogActions></Dialog>
   </>;
 }

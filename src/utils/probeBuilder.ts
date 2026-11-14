@@ -343,3 +343,9 @@ export function compileProtocol(seed: any, probes: ProbesConfig, target: TargetC
   protocol.post_process = { ...protocol.post_process, filters: { ...Object.fromEntries(Object.entries(protocol.post_process?.filters || {}).filter(([name]) => !previousNames.has(name))), ...collected.filters } };
   return protocol;
 }
+
+export function compileWorkflowMethod(seed: any, probes: ProbesConfig, target: TargetConfig, metadata: { name: string; description?: string }, workflowBarcodes?: { count: number; default_length?: number; barcodes: Record<string, { name: string; length?: number }> }) {
+  const definitions = workflowBarcodes && Object.fromEntries(Object.entries(workflowBarcodes.barcodes).map(([key, entry]) => [entry.name || key, { length: entry.length }]));
+  const bars = workflowBarcodes ? { ...seed.barcodes, ...workflowBarcodes, barcodes: { ...seed.barcodes?.barcodes, ...definitions } } : seed.barcodes || seed.barcode_config || { count: 0, barcodes: {} };
+  return compileProtocol(seed, probes, target, { ...bars, barcodes: bars.barcodes || {} }, metadata);
+}

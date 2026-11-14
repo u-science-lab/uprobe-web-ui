@@ -6,6 +6,7 @@ import { buildTargetExpression, buildBarcodeExpression, buildFixedSequence, buil
 import { restoreTemplate } from '../src/utils/probeConfig';
 import { validateTargetLayout } from '../src/utils/targetLayout';
 import type { ProbesConfig } from '../src/types';
+import { compileWorkflowMethod } from '../src/utils/probeBuilder';
 
 const target = { source: 'exon', length: 40, step: 1, attributes: {} };
 const barcodes = { count: 1, barcodes: { BC1: { length: 12 } } };
@@ -20,6 +21,19 @@ const cases: ProbesConfig[] = [
 ];
 let checks = 0;
 const check = (name: string, test: () => void) => { test(); checks++; console.log(`PASS ${name}`); };
+check('custom and workflow compile the same method and preserve extensions', () => {
+  const seed = { extracts: { extra: { source: 'exon', length: 8 } }, reports: { custom: true }, post_process: { custom_stage: { enabled: true } } };
+  const metadata = { name: 'Shared method' };
+  const custom = compileProtocol(seed, cases[4], target, barcodes, metadata);
+  const workflow = compileWorkflowMethod({ ...seed, barcodes }, cases[4], target, metadata);
+  assert.deepEqual(workflow, custom);
+  const resized = compileWorkflowMethod({ ...custom }, cases[4], { ...target, length: 60, step: 3 }, metadata);
+  assert.equal(resized.extracts.target_region.length, 60);
+  assert.equal(resized.extracts.target_region.step, 3);
+  assert.deepEqual(resized.extracts.extra, seed.extracts.extra);
+  assert.deepEqual(resized.post_process.custom_stage, seed.post_process.custom_stage);
+  assert.deepEqual(resized.probes, custom.probes);
+});
 for (const [i, probes] of cases.entries()) check(`representative ${i + 1}: load/edit/save/reload`, () => {
   const first = compileProtocol({ post_process: { equal_space: { count: 3 } }, reports: { custom: true } }, probes, target, barcodes, { name: 'Roundtrip' });
   const saved = yaml.load(yaml.dump(first)) as any;

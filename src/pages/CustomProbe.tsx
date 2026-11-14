@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import yaml from 'js-yaml';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button,
   CircularProgress, Container, Dialog, DialogTitle, DialogContent, DialogActions, Divider,
   IconButton, MenuItem, Paper, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
@@ -74,7 +74,6 @@ export default function CustomProbe() {
   const [validity, setValidity] = useState({ basic: true, advanced: true });
   const [dirty, setDirty] = useDraftState<boolean>('custom.canonical.dirty', false);
   const [pendingSegment, setPendingSegment] = useState(false);
-  const [inspectorContainer, setInspectorContainer] = useState<HTMLDivElement | null>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [deletingBarcode, setDeletingBarcode] = useState<string | null>(null);
   const [replaceAction, setReplaceAction] = useState<(() => void) | null>(null);
@@ -204,8 +203,8 @@ export default function CustomProbe() {
   };
   const pendingHint = pendingSegment ? 'Apply or discard segment changes first' : '';
 
-  return <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3 }, pb: 5 }}>
-    <Stack spacing={2.5}>
+  return <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, pb: 5 }}>
+    <Stack spacing={3}>
       <Box component="section" aria-label="Method information">
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ mb: 2 }}>
           <Typography variant="h6" fontWeight={600}>Custom Probe</Typography>
@@ -224,23 +223,8 @@ export default function CustomProbe() {
       </Box>
       {message && <Alert severity={message.error ? 'error' : 'success'} onClose={() => setMessage(null)}>{message.text}</Alert>}
 
-      <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Probe structure canvas">
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>Probe Structure</Typography>
-          <Chip size="small" variant="outlined" label={`${Object.keys(draft.probes).length} probe${Object.keys(draft.probes).length === 1 ? '' : 's'}`} />
-        </Stack>
-        <ProbeStructureEditor
-          key={revision} probes={draft.probes} target={draft.target} barcodes={draft.barcodes}
-          onChange={probes => patch({ probes })} onBarcodes={barcodes => patch({ barcodes })}
-          onRename={renameScope} inspectorContainer={inspectorContainer}
-          onPendingChange={setPendingSegment}
-          onSelectionChange={path => setSelectedSegment(path?.join('.') || null)}
-        />
-      </Paper>
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' }, gap: 2 }}>
-        <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Target settings">
-          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>Target Settings</Typography>
+      <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Target settings">
+        <Typography variant="h6" sx={{ mb: 2 }}>Target Configuration</Typography>
           <CustomTargetEditor
             key={`target-${revision}`} value={draft.target}
             onValidity={valid => setValidity(previous => ({ ...previous, basic: valid }))}
@@ -253,23 +237,31 @@ export default function CustomProbe() {
               });
             }}
           />
-        </Paper>
-        <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Selected segment settings">
-          <Box ref={setInspectorContainer} />
-        </Paper>
-      </Box>
+        <Accordion disableGutters elevation={0} sx={{ ...disclosureStyle, mt: 2 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2">Target attributes &amp; sampling</Typography></AccordionSummary>
+          <AccordionDetails><CustomTargetEditor key={`advanced-${revision}`} advancedOnly value={draft.target} onChange={changeTarget}
+            onValidity={valid => setValidity(previous => ({ ...previous, advanced: valid }))} onRename={() => {}} /></AccordionDetails>
+        </Accordion>
+      </Paper>
+      <Paper component="section" variant="outlined" sx={panelStyle} aria-label="Probe structure design">
+        <Typography variant="h6" sx={{ mb: 2 }}>Probe Structure Design</Typography>
+        <ProbeStructureEditor key={revision} probes={draft.probes} target={draft.target} barcodes={draft.barcodes}
+          onChange={probes => patch({ probes })} onBarcodes={barcodes => patch({ barcodes })}
+          onRename={renameScope} onPendingChange={setPendingSegment}
+          onSelectionChange={path => setSelectedSegment(path?.join('.') || null)} />
+      </Paper>
 
       <Accordion disableGutters elevation={0} sx={{ ...disclosureStyle, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-label="Advanced settings" sx={{ px: { xs: 2, sm: 2.5 } }}>
-          <Typography variant="subtitle2">Advanced Settings</Typography>
+          <Typography variant="subtitle2">Filters, Attributes &amp; Barcodes</Typography>
         </AccordionSummary>
         <AccordionDetails sx={{ px: { xs: 2, sm: 2.5 }, pt: 0, pb: 2 }}>
           <Accordion disableGutters elevation={0} sx={disclosureStyle}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2">Filters &amp; Attributes</Typography></AccordionSummary>
             <AccordionDetails><Stack spacing={2}>
-              <Typography variant="caption" color="text.secondary">Filter target is independent of the canvas selection.</Typography>
+              <Typography variant="caption" color="text.secondary">Choose the sequence whose attributes you want to edit.</Typography>
               <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-                <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere', minWidth: 0 }}>Canvas selection: {selectedScope ? selectedScope.path.replace(/\./g, ' / ') : 'None'}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere', minWidth: 0 }}>Selected segment: {selectedScope ? selectedScope.path.replace(/\./g, ' / ') : 'None'}</Typography>
                 {selectedScope && selectedScope.path !== scope && <Button size="small" onClick={() => setScope(selectedScope.path)}>Use selected segment</Button>}
               </Stack>
                 <TextField select size="small" label="Filter target" value={activeScope?.path || ''} sx={{ maxWidth: 360 }} onChange={e => setScope(e.target.value)}>
@@ -293,15 +285,7 @@ export default function CustomProbe() {
               {!Object.keys(draft.barcodes.barcodes).length && <Typography variant="body2" color="text.secondary">Define a barcode from a Barcode / Readout segment.</Typography>}
             </Stack></AccordionDetails>
           </Accordion>
-          <Divider />
-          <Accordion disableGutters elevation={0} sx={disclosureStyle}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2">Target advanced settings</Typography></AccordionSummary>
-            <AccordionDetails>
-              <CustomTargetEditor key={`advanced-${revision}`} advancedOnly value={draft.target} onChange={changeTarget}
-                onValidity={valid => setValidity(previous => ({ ...previous, advanced: valid }))}
-                onRename={() => {}} />
-            </AccordionDetails>
-          </Accordion>
+
         </AccordionDetails>
       </Accordion>
 
